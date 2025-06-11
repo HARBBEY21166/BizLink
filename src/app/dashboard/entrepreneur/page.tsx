@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CollaborationRequest } from '@/types';
 import { useState }// Mock data - replace with API call and state management
 import { MailWarning, CheckCheck, XCircle } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const mockRequests: CollaborationRequest[] = [
   {
