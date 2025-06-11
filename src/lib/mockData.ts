@@ -14,7 +14,9 @@ export const allMockUsers: User[] = [
     fundingNeed: '$500,000',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'woman entrepreneur',
     pitchDeckUrl: 'https://example.com/pitchdeck-alice.pdf',
+    isOnline: true,
   },
   {
     id: 'e2',
@@ -26,6 +28,8 @@ export const allMockUsers: User[] = [
     fundingNeed: '$250,000',
     createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'man construction',
+    isOnline: false,
   },
   {
     id: 'e3',
@@ -37,6 +41,8 @@ export const allMockUsers: User[] = [
     fundingNeed: '$1M',
     createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'woman artist',
+    isOnline: true,
   },
   {
     id: 'e4',
@@ -48,6 +54,8 @@ export const allMockUsers: User[] = [
     fundingNeed: '$300,000',
     createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'man software',
+    isOnline: false,
   },
   {
     id: 'e5',
@@ -59,6 +67,8 @@ export const allMockUsers: User[] = [
     fundingNeed: '$150,000',
     createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'woman business',
+    isOnline: true,
   },
   {
     id: 'i1',
@@ -70,6 +80,8 @@ export const allMockUsers: User[] = [
     portfolioCompanies: ['Innovatech Ltd.', 'FinSolutions Inc.'],
     createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'woman investor',
+    isOnline: true,
   },
   {
     id: 'i2',
@@ -81,6 +93,8 @@ export const allMockUsers: User[] = [
     portfolioCompanies: ['GreenSteps Co.', 'ConnectApp'],
     createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'man finance',
+    isOnline: false,
   },
   {
     id: 'i3',
@@ -92,6 +106,8 @@ export const allMockUsers: User[] = [
     portfolioCompanies: ['ScaleUp Inc.', 'SecureNet Ltd.'],
     createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
     avatarUrl: 'https://placehold.co/150x150.png',
+    dataAiHint: 'woman corporate',
+    isOnline: true,
   }
 ];
 
@@ -99,7 +115,6 @@ export const getMockUserById = (userId: string): User | undefined => {
   return allMockUsers.find(user => user.id === userId);
 };
 
-// Mock collaboration requests using IDs from allMockUsers
 export const initialMockRequests: Omit<CollaborationRequest, 'id' | 'requestedAt'>[] = [
   {
     investorId: 'i1',
@@ -133,7 +148,6 @@ export const initialMockRequests: Omit<CollaborationRequest, 'id' | 'requestedAt
   },
 ];
 
-// Function to get or initialize requests in localStorage
 export const getCollaborationRequests = (currentEntrepreneurId?: string): CollaborationRequest[] => {
   if (typeof window !== 'undefined') {
     const storedRequestsStr = localStorage.getItem('collaborationRequests');
@@ -144,7 +158,6 @@ export const getCollaborationRequests = (currentEntrepreneurId?: string): Collab
       }
       return storedRequests;
     } else if (currentEntrepreneurId) {
-      // Initialize with requests for the current entrepreneur if none are stored
       const entrepreneurRequests = initialMockRequests
         .filter(reqBase => reqBase.entrepreneurId === currentEntrepreneurId)
         .map((reqBase, index) => ({

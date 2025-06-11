@@ -1,3 +1,4 @@
+
 export type Role = 'investor' | 'entrepreneur';
 
 export interface User {
@@ -13,6 +14,8 @@ export interface User {
   portfolioCompanies?: string[]; // Investor only
   createdAt: string;
   avatarUrl?: string; // Optional: URL to avatar image
+  isOnline?: boolean; // For chat status
+  dataAiHint?: string; // For placeholder image generation
 }
 
 export interface CollaborationRequest {

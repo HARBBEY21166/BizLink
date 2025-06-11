@@ -1,3 +1,4 @@
+
 'use client';
 
 import ChatInput from '@/components/dashboard/chat/chat-input';
@@ -14,8 +15,8 @@ import { useEffect, useState, useRef } from 'react';
 
 // Mock data - replace with API calls and real-time updates
 const mockChatPartners: Record<string, User> = {
-  'i1': { id: 'i1', name: 'Victoria Venture', email: 'victoria@example.com', role: 'investor', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "woman executive" },
-  'e2': { id: 'e2', name: 'Bob Builder', email: 'bob@example.com', role: 'entrepreneur', startupDescription: 'LearnAI Co.', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "man developer" },
+  'i1': { id: 'i1', name: 'Victoria Venture', email: 'victoria@example.com', role: 'investor', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "woman executive", isOnline: true },
+  'e2': { id: 'e2', name: 'Bob Builder', email: 'bob@example.com', role: 'entrepreneur', startupDescription: 'LearnAI Co.', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "man developer", isOnline: false },
 };
 
 const mockMessages: Record<string, ChatMessage[]> = {
@@ -50,7 +51,6 @@ export default function ChatPage() {
       const partner = mockChatPartners[chatId]; // Fetch partner details
       setChatPartner(partner);
       
-      // Replace 'currentUser' in mockMessages sender/receiver IDs with actual current user ID
       const chatMessages = (mockMessages[chatId] || []).map(msg => ({
         ...msg,
         senderId: msg.senderId === 'currentUser' ? user.id : msg.senderId,
@@ -62,7 +62,6 @@ export default function ChatPage() {
   }, [chatId]);
 
   useEffect(() => {
-    // Scroll to bottom when new messages arrive
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
@@ -79,7 +78,6 @@ export default function ChatPage() {
       timestamp: new Date().toISOString(),
     };
     setMessages(prevMessages => [...prevMessages, newMessage]);
-    // In a real app, send this message via Socket.io or API
   };
   
   const getInitials = (name: string = "") => {
@@ -100,7 +98,6 @@ export default function ChatPage() {
   
   return (
     <div className="flex flex-col h-full bg-card shadow-lg rounded-lg overflow-hidden">
-      {/* Chat Header */}
       <div className="flex items-center p-4 border-b bg-background">
         <Button variant="ghost" size="icon" asChild className="mr-2 md:hidden">
           <Link href="/dashboard/chat">
@@ -113,19 +110,21 @@ export default function ChatPage() {
         </Avatar>
         <div className="ml-3">
           <h2 className="font-semibold font-headline text-lg">{chatPartner.name}</h2>
-          <p className="text-xs text-muted-foreground capitalize">{chatPartner.role}</p>
+          <div className="flex items-center gap-1.5">
+            <div className={`h-2.5 w-2.5 rounded-full ${chatPartner.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <p className="text-xs text-muted-foreground capitalize">
+              {chatPartner.isOnline ? 'Online' : 'Offline'} - {chatPartner.role}
+            </p>
+          </div>
         </div>
-        {/* Optional: Online/Offline status indicator */}
       </div>
 
-      {/* Messages Area */}
       <ScrollArea className="flex-1 p-4 space-y-4" ref={scrollAreaRef}>
         {messages.map((msg) => (
           <ChatMessageDisplay key={msg.id} message={msg} currentUser={currentUser} chatPartner={chatPartner} />
         ))}
       </ScrollArea>
 
-      {/* Message Input */}
       <ChatInput onSendMessage={handleSendMessage} />
     </div>
   );
