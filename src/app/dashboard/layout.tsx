@@ -30,32 +30,41 @@ export default function DashboardLayout({
 
       // Role-based route protection
       if (user) {
-        const isInvestorDashboard = pathname.startsWith('/dashboard/investor');
-        const isEntrepreneurDashboard = pathname.startsWith('/dashboard/entrepreneur');
+        const isInvestorBaseDashboard = pathname === ('/dashboard/investor');
+        const isEntrepreneurBaseDashboard = pathname === ('/dashboard/entrepreneur');
         const isPitchAnalyzer = pathname.startsWith('/dashboard/pitch-analyzer');
-        const isProfilePage = pathname.startsWith('/dashboard/profile'); // Own profile
+        const isDiscoverInvestors = pathname.startsWith('/dashboard/discover-investors');
+        const isProfilePage = pathname.startsWith('/dashboard/profile'); // Own profile or other users'
         const isChatPage = pathname.startsWith('/dashboard/chat'); // Chat pages
 
+        let allowed = false;
+
         if (user.role === 'investor') {
-          if (isEntrepreneurDashboard || isPitchAnalyzer) {
-            router.replace('/dashboard/investor');
+          if (isInvestorBaseDashboard || isProfilePage || isChatPage) {
+            allowed = true;
+          } else if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors) {
+             router.replace('/dashboard/investor');
+             return;
           }
         } else if (user.role === 'entrepreneur') {
-          if (isInvestorDashboard) {
-            router.replace('/dashboard/entrepreneur');
+          if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors || isProfilePage || isChatPage) {
+            allowed = true;
+          } else if (isInvestorBaseDashboard) {
+             router.replace('/dashboard/entrepreneur');
+             return;
           }
         }
         
-        // Allow access to own profile, chat, and specific user profiles for all authenticated users
-        // The specific user profile page (/dashboard/profile/user/[userId]) will handle its own logic
-        // if needed, but basic access is granted here.
-         if (!(isInvestorDashboard || isEntrepreneurDashboard || isPitchAnalyzer || isProfilePage || isChatPage || pathname.startsWith('/dashboard/profile/user/'))) {
-            // If it's some other unknown dashboard route, redirect to their default.
-            // This case might not be hit if all routes are well-defined.
-            if (user.role === 'investor') router.replace('/dashboard/investor');
-            else router.replace('/dashboard/entrepreneur');
-         }
-
+        // If not explicitly allowed and not a general shared page like profile/chat, redirect.
+        // This handles cases like trying to access `/dashboard` directly or other unknown sub-routes.
+        if (!allowed && !(isProfilePage || isChatPage)) {
+             // Fallback for any other /dashboard root access or undefined paths
+            if (pathname === '/dashboard' || pathname === '/dashboard/'){
+                if (user.role === 'investor') router.replace('/dashboard/investor');
+                else router.replace('/dashboard/entrepreneur');
+                return;
+            }
+        }
       }
     }
   }, [router, pathname]);
