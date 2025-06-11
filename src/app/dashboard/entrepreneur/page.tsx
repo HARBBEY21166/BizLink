@@ -1,9 +1,10 @@
+
 'use client';
 
 import RequestCard from '@/components/dashboard/entrepreneur/request-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CollaborationRequest } from '@/types';
-import { useState }// Mock data - replace with API call and state management
+import { useState } from 'react';
 import { MailWarning, CheckCheck, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
