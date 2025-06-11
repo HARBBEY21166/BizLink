@@ -18,9 +18,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { mockRegister } from '@/lib/mockAuth';
+// import { mockRegister } from '@/lib/mockAuth'; // Will be replaced by API call
 import { useToast } from '@/hooks/use-toast';
-import type { Role } from '@/types';
+import type { Role, User } from '@/types';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -54,30 +54,50 @@ export default function RegisterForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      const user = await mockRegister(values.name, values.email, values.role as Role);
-      if (user) {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: values.name,
+          email: values.email,
+          password: values.password, // In a real app, the backend handles hashing.
+          role: values.role as Role,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed. Please try again.');
+      }
+
+      const user: User = data.user;
+      const token: string = data.token;
+
+      if (user && token && typeof window !== 'undefined') {
+        localStorage.setItem('bizlinkUser', JSON.stringify(user));
+        localStorage.setItem('bizlinkToken', token);
+        
         toast({
           title: 'Registration Successful',
           description: `Welcome, ${user.name}! Your account has been created.`,
         });
-        // Redirect based on role
+
         if (user.role === 'investor') {
           router.push('/dashboard/investor');
         } else {
           router.push('/dashboard/entrepreneur');
         }
       } else {
-        toast({
-          variant: 'destructive',
-          title: 'Registration Failed',
-          description: 'Could not create account. Please try again.',
-        });
+         throw new Error('Invalid response from server.');
       }
     } catch (error) {
        toast({
         variant: 'destructive',
-        title: 'An error occurred',
-        description: 'Something went wrong. Please try again later.',
+        title: 'Registration Failed',
+        description: error instanceof Error ? error.message : 'Could not create account. Please try again later.',
       });
     } finally {
       setIsLoading(false);
