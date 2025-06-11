@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { User, CollaborationRequest } from "@/types";
-import { Briefcase, MessageSquare, UserPlus, CheckCircle, Loader2 } from "lucide-react";
+import { Briefcase, MessageSquare, UserPlus, CheckCircle, Loader2, Eye } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { getAuthenticatedUser } from "@/lib/mockAuth";
@@ -20,20 +20,24 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<CollaborationRequest['status'] | null>(null);
+
 
   useEffect(() => {
     const user = getAuthenticatedUser();
     setCurrentUser(user);
 
-    // Check if a request was already sent to this entrepreneur by this investor
     if (user && typeof window !== 'undefined') {
       const existingRequestsStr = localStorage.getItem('collaborationRequests');
       if (existingRequestsStr) {
         const existingRequests: CollaborationRequest[] = JSON.parse(existingRequestsStr);
-        const alreadySent = existingRequests.some(
+        const sentRequest = existingRequests.find(
           req => req.investorId === user.id && req.entrepreneurId === entrepreneur.id
         );
-        setRequestSent(alreadySent);
+        if (sentRequest) {
+          setRequestSent(true);
+          setRequestStatus(sentRequest.status);
+        }
       }
     }
   }, [entrepreneur.id]);
@@ -58,7 +62,6 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
 
     setIsRequesting(true);
     try {
-      // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 700));
 
       const newRequest: CollaborationRequest = {
@@ -80,6 +83,17 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
         if (existingRequestsStr) {
           allRequests = JSON.parse(existingRequestsStr);
         }
+        // Prevent duplicate pending requests
+        const alreadyPending = allRequests.some(req => req.investorId === currentUser.id && req.entrepreneurId === entrepreneur.id && req.status === 'pending');
+        if (alreadyPending) {
+            toast({
+                title: "Request Already Pending",
+                description: `You already have a pending request with ${entrepreneur.name}.`,
+                variant: "default"
+            });
+            setIsRequesting(false);
+            return;
+        }
         allRequests.push(newRequest);
         localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
       }
@@ -89,6 +103,7 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
         description: `Your collaboration request to ${entrepreneur.name} has been sent.`,
       });
       setRequestSent(true);
+      setRequestStatus('pending');
     } catch (error) {
       toast({
         title: "Error Sending Request",
@@ -99,6 +114,26 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
       setIsRequesting(false);
     }
   };
+  
+  const getRequestButtonText = () => {
+    if (isRequesting) return <Loader2 className="mr-2 h-4 w-4 animate-spin" />;
+    if (requestSent) {
+      if (requestStatus === 'accepted') return <><CheckCircle className="mr-2 h-4 w-4" /> Accepted</>;
+      if (requestStatus === 'rejected') return <> <UserPlus className="mr-2 h-4 w-4" /> Rejected</>; // Or some other icon like XCircle
+      return <><CheckCircle className="mr-2 h-4 w-4" /> Request Sent</>;
+    }
+    return <><UserPlus className="mr-2 h-4 w-4" /> Request Collaboration</>;
+  };
+
+  const getRequestButtonClass = () => {
+    if (requestSent) {
+        if (requestStatus === 'accepted') return "bg-green-600 hover:bg-green-700 text-white";
+        if (requestStatus === 'rejected') return "bg-red-600 hover:bg-red-700 text-white";
+        return "bg-primary hover:bg-primary/90 text-primary-foreground"; // Pending
+    }
+    return "bg-primary hover:bg-primary/90 text-primary-foreground"; // Default
+  }
+
 
   return (
     <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
@@ -121,8 +156,13 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
           {entrepreneur.bio || "A brief bio about the entrepreneur and their venture will appear here. Seeking opportunities for growth and collaboration."}
         </p>
       </CardContent>
-      <CardFooter className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" asChild>
+      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2">
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
+          <Link href={`/dashboard/profile/user/${entrepreneur.id}`}>
+            <Eye className="mr-2 h-4 w-4" /> View Profile
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
           <Link href={`/dashboard/chat/${entrepreneur.id}`}>
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>
@@ -130,17 +170,10 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
         <Button 
           size="sm" 
           onClick={handleRequestCollaboration} 
-          disabled={isRequesting || requestSent}
-          className={requestSent ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+          disabled={isRequesting || (requestSent && requestStatus !== 'rejected')} // Allow re-request if rejected
+          className={`${getRequestButtonClass()} w-full sm:w-auto`}
         >
-          {isRequesting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : requestSent ? (
-            <CheckCircle className="mr-2 h-4 w-4" />
-          ) : (
-            <UserPlus className="mr-2 h-4 w-4" />
-          )}
-          {requestSent ? "Request Sent" : "Request Collaboration"}
+          {getRequestButtonText()}
         </Button>
       </CardFooter>
     </Card>

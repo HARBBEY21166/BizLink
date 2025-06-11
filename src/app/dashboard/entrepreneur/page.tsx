@@ -8,31 +8,7 @@ import { useState, useEffect } from 'react';
 import { MailWarning, CheckCheck, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
-
-// Initial mock data, will be overridden by localStorage if available
-const initialMockRequests: CollaborationRequest[] = [
-  {
-    id: 'r1-initial',
-    investorId: 'i1-mock',
-    investorName: 'Victoria Venture (Mock)',
-    investorBioSnippet: 'Seasoned investor with a focus on SaaS and Fintech. Looking for disruptive ideas.',
-    entrepreneurId: 'defaultUser', // This will be replaced by the current user's ID if they are an entrepreneur
-    entrepreneurName: 'Alice Innovator',
-    status: 'pending',
-    requestedAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-    message: 'Impressed by EcoTech Solutions. Would love to discuss your vision.'
-  },
-  {
-    id: 'r2-initial',
-    investorId: 'i2-mock',
-    investorName: 'Mark Moneywise (Mock)',
-    investorBioSnippet: 'Early-stage angel investor passionate about impact-driven startups.',
-    entrepreneurId: 'defaultUser',
-    entrepreneurName: 'Alice Innovator',
-    status: 'accepted',
-    requestedAt: new Date(Date.now() - 2 * 86400000).toISOString(), 
-  },
-];
+import { getCollaborationRequests } from '@/lib/mockData'; // Use new mock data functions
 
 export default function EntrepreneurDashboardPage() {
   const [requests, setRequests] = useState<CollaborationRequest[]>([]);
@@ -46,20 +22,7 @@ export default function EntrepreneurDashboardPage() {
     setIsLoading(true);
 
     if (user && user.role === 'entrepreneur' && typeof window !== 'undefined') {
-      let storedRequests: CollaborationRequest[] = [];
-      const storedRequestsStr = localStorage.getItem('collaborationRequests');
-      
-      if (storedRequestsStr) {
-        storedRequests = JSON.parse(storedRequestsStr);
-      } else {
-        // If no requests in localStorage, use initial mocks and save them
-        // Make sure entrepreneurId in initial mocks matches the current user
-        storedRequests = initialMockRequests.map(req => ({...req, entrepreneurId: user.id, entrepreneurName: user.name}));
-        localStorage.setItem('collaborationRequests', JSON.stringify(storedRequests));
-      }
-      
-      // Filter requests for the current entrepreneur
-      const myRequests = storedRequests.filter(req => req.entrepreneurId === user.id);
+      const myRequests = getCollaborationRequests(user.id);
       setRequests(myRequests);
     }
     setIsLoading(false);
@@ -70,10 +33,18 @@ export default function EntrepreneurDashboardPage() {
       const storedRequestsStr = localStorage.getItem('collaborationRequests');
       if (storedRequestsStr) {
         let allRequests: CollaborationRequest[] = JSON.parse(storedRequestsStr);
-        allRequests = allRequests.map(r => 
-          r.id === requestId ? { ...r, status: status } : r
-        );
-        localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
+        let requestUpdated = false;
+        allRequests = allRequests.map(r => {
+          if (r.id === requestId) {
+            requestUpdated = true;
+            return { ...r, status: status };
+          }
+          return r;
+        });
+        
+        if (requestUpdated) {
+          localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
+        }
       }
     }
   };
@@ -97,7 +68,9 @@ export default function EntrepreneurDashboardPage() {
   }
 
   if (!currentUser || currentUser.role !== 'entrepreneur') {
-    return <p className="text-center py-10 text-muted-foreground">This dashboard is for entrepreneurs.</p>;
+     // This case should ideally be handled by the DashboardLayout's role protection,
+    // but kept here as a fallback.
+    return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for entrepreneurs.</p>;
   }
 
   return (

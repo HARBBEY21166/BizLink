@@ -1,9 +1,10 @@
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CollaborationRequest } from "@/types";
-import { Check, MessageSquare, X, Briefcase } from "lucide-react";
+import { Check, MessageSquare, X, Briefcase, Eye } from "lucide-react";
 import Link from "next/link";
 
 interface RequestCardProps {
@@ -21,17 +22,16 @@ export default function RequestCard({ request, onAccept, onReject }: RequestCard
       .toUpperCase();
   };
   
-  const statusColors = {
+  const statusColors: { [key in CollaborationRequest['status']]: string } = {
     pending: 'bg-yellow-500 hover:bg-yellow-500/90',
-    accepted: 'bg-green-500 hover:bg-green-500/90',
-    rejected: 'bg-red-500 hover:bg-red-500/90',
+    accepted: 'bg-green-600 hover:bg-green-600/90', // Changed green to be more vibrant
+    rejected: 'bg-red-600 hover:bg-red-600/90', // Changed red to be more vibrant
   };
 
   return (
     <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
       <CardHeader className="flex flex-row items-start gap-4 space-y-0">
         <Avatar className="h-16 w-16 border-2 border-primary">
-          {/* Use a placeholder for investor avatar */}
           <AvatarImage src={`https://placehold.co/100x100.png?text=${getInitials(request.investorName)}`} alt={request.investorName} data-ai-hint="person suit" />
           <AvatarFallback>{getInitials(request.investorName)}</AvatarFallback>
         </Avatar>
@@ -45,25 +45,30 @@ export default function RequestCard({ request, onAccept, onReject }: RequestCard
             Requested on: {new Date(request.requestedAt).toLocaleDateString()}
           </p>
         </div>
-        <Badge className={`${statusColors[request.status]} text-white capitalize`}>{request.status}</Badge>
+        <Badge className={`${statusColors[request.status]} text-primary-foreground capitalize`}>{request.status}</Badge>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-foreground mb-2 line-clamp-2">
           {request.message || (request.investorBioSnippet || "Interested in learning more about your venture and exploring potential collaboration.")}
         </p>
       </CardContent>
-      <CardFooter className="flex justify-end gap-2">
-        <Button variant="outline" size="sm" asChild>
+      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2">
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
+          <Link href={`/dashboard/profile/user/${request.investorId}`}>
+            <Eye className="mr-2 h-4 w-4" /> View Profile
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
           <Link href={`/dashboard/chat/${request.investorId}`}>
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>
         </Button>
         {request.status === 'pending' && (
           <>
-            <Button size="sm" variant="destructive" onClick={() => onReject(request.id)}>
+            <Button size="sm" variant="destructive" onClick={() => onReject(request.id)} className="w-full sm:w-auto">
               <X className="mr-2 h-4 w-4" /> Reject
             </Button>
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => onAccept(request.id)}>
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-primary-foreground w-full sm:w-auto" onClick={() => onAccept(request.id)}>
               <Check className="mr-2 h-4 w-4" /> Accept
             </Button>
           </>

@@ -7,79 +7,15 @@ import type { User } from '@/types';
 import { Search, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
-
-
-// Mock data - replace with API call
-const mockEntrepreneurs: User[] = [
-  {
-    id: 'e1',
-    name: 'Alice Innovator',
-    email: 'alice@example.com',
-    role: 'entrepreneur',
-    bio: 'Pioneering new solutions in sustainable tech. Looking for seed funding to scale operations and expand market reach.',
-    startupDescription: 'EcoTech Solutions',
-    fundingNeed: '$500,000',
-    createdAt: new Date().toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'woman smiling'
-  },
-  {
-    id: 'e2',
-    name: 'Bob Builder',
-    email: 'bob@example.com',
-    role: 'entrepreneur',
-    bio: 'Building the next generation of AI-powered educational tools. Passionate about transforming learning experiences.',
-    startupDescription: 'LearnAI Co.',
-    fundingNeed: '$250,000',
-    createdAt: new Date().toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'man glasses'
-  },
-  {
-    id: 'e3',
-    name: 'Carol Creator',
-    email: 'carol@example.com',
-    role: 'entrepreneur',
-    bio: 'Developing a platform for independent artists to monetize their work. Strong focus on community and fair compensation.',
-    startupDescription: 'Artify Hub',
-    fundingNeed: '$1M',
-    createdAt: new Date().toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'person painting'
-  },
-  {
-    id: 'e4',
-    name: 'David Developer',
-    email: 'david@example.com',
-    role: 'entrepreneur',
-    bio: 'Creating innovative mobile applications for productivity and lifestyle improvements. Experienced in full-stack development.',
-    startupDescription: 'AppWorks Studio',
-    fundingNeed: '$300,000',
-    createdAt: new Date().toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'man coding'
-  },
-  {
-    id: 'e5',
-    name: 'Eva Ecommerce',
-    email: 'eva@example.com',
-    role: 'entrepreneur',
-    bio: 'Building a niche e-commerce platform for handcrafted goods. Focus on ethical sourcing and artisan empowerment.',
-    startupDescription: 'Artisan Collective',
-    fundingNeed: '$150,000',
-    createdAt: new Date().toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'woman online shopping'
-  }
-];
+import { allMockUsers } from '@/lib/mockData'; // Import allMockUsers
 
 export default function InvestorDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // In a real app, fetch entrepreneurs from an API
-  const entrepreneurs = mockEntrepreneurs;
+  // Filter entrepreneurs from allMockUsers
+  const entrepreneurs = allMockUsers.filter(user => user.role === 'entrepreneur');
 
   useEffect(() => {
     const user = getAuthenticatedUser();
@@ -98,9 +34,10 @@ export default function InvestorDashboardPage() {
   }
 
   if (!currentUser || currentUser.role !== 'investor') {
-    return <p className="text-center py-10 text-muted-foreground">This dashboard is for investors.</p>;
+    // This case should ideally be handled by the DashboardLayout's role protection,
+    // but kept here as a fallback.
+    return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for investors.</p>;
   }
-
 
   return (
     <div className="space-y-8">
