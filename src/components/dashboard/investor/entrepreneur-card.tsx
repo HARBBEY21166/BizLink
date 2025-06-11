@@ -1,21 +1,103 @@
+
+'use client';
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import type { User } from "@/types";
-import { Briefcase, MessageSquare, UserPlus } from "lucide-react";
+import type { User, CollaborationRequest } from "@/types";
+import { Briefcase, MessageSquare, UserPlus, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { getAuthenticatedUser } from "@/lib/mockAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface EntrepreneurCardProps {
-  entrepreneur: User; // Assuming User type has relevant fields for entrepreneur
+  entrepreneur: User;
 }
 
 export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps) {
+  const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isRequesting, setIsRequesting] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+
+  useEffect(() => {
+    const user = getAuthenticatedUser();
+    setCurrentUser(user);
+
+    // Check if a request was already sent to this entrepreneur by this investor
+    if (user && typeof window !== 'undefined') {
+      const existingRequestsStr = localStorage.getItem('collaborationRequests');
+      if (existingRequestsStr) {
+        const existingRequests: CollaborationRequest[] = JSON.parse(existingRequestsStr);
+        const alreadySent = existingRequests.some(
+          req => req.investorId === user.id && req.entrepreneurId === entrepreneur.id
+        );
+        setRequestSent(alreadySent);
+      }
+    }
+  }, [entrepreneur.id]);
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
       .map((n) => n[0])
       .join('')
       .toUpperCase();
+  };
+
+  const handleRequestCollaboration = async () => {
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "Please log in to send requests.", variant: "destructive" });
+      return;
+    }
+    if (currentUser.role !== 'investor') {
+        toast({ title: "Permission Denied", description: "Only investors can send collaboration requests.", variant: "destructive" });
+        return;
+    }
+
+    setIsRequesting(true);
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 700));
+
+      const newRequest: CollaborationRequest = {
+        id: `collab-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        investorId: currentUser.id,
+        investorName: currentUser.name,
+        investorBioSnippet: currentUser.bio?.substring(0, 150) || "An interested investor.",
+        entrepreneurId: entrepreneur.id,
+        entrepreneurName: entrepreneur.name,
+        entrepreneurStartup: entrepreneur.startupDescription,
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+        message: `Hi ${entrepreneur.name}, I'm impressed by ${entrepreneur.startupDescription || 'your venture'} and would like to learn more.`,
+      };
+
+      if (typeof window !== 'undefined') {
+        const existingRequestsStr = localStorage.getItem('collaborationRequests');
+        let allRequests: CollaborationRequest[] = [];
+        if (existingRequestsStr) {
+          allRequests = JSON.parse(existingRequestsStr);
+        }
+        allRequests.push(newRequest);
+        localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
+      }
+
+      toast({
+        title: "Request Sent!",
+        description: `Your collaboration request to ${entrepreneur.name} has been sent.`,
+      });
+      setRequestSent(true);
+    } catch (error) {
+      toast({
+        title: "Error Sending Request",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRequesting(false);
+    }
   };
 
   return (
@@ -45,8 +127,20 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>
         </Button>
-        <Button size="sm">
-          <UserPlus className="mr-2 h-4 w-4" /> Request Collaboration
+        <Button 
+          size="sm" 
+          onClick={handleRequestCollaboration} 
+          disabled={isRequesting || requestSent}
+          className={requestSent ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+        >
+          {isRequesting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : requestSent ? (
+            <CheckCircle className="mr-2 h-4 w-4" />
+          ) : (
+            <UserPlus className="mr-2 h-4 w-4" />
+          )}
+          {requestSent ? "Request Sent" : "Request Collaboration"}
         </Button>
       </CardFooter>
     </Card>

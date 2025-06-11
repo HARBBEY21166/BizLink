@@ -3,63 +3,102 @@
 
 import RequestCard from '@/components/dashboard/entrepreneur/request-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { CollaborationRequest } from '@/types';
-import { useState } from 'react';
-import { MailWarning, CheckCheck, XCircle } from 'lucide-react';
+import type { CollaborationRequest, User } from '@/types';
+import { useState, useEffect } from 'react';
+import { MailWarning, CheckCheck, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAuthenticatedUser } from '@/lib/mockAuth';
 
-const mockRequests: CollaborationRequest[] = [
+// Initial mock data, will be overridden by localStorage if available
+const initialMockRequests: CollaborationRequest[] = [
   {
-    id: 'r1',
-    investorId: 'i1',
-    investorName: 'Victoria Venture',
+    id: 'r1-initial',
+    investorId: 'i1-mock',
+    investorName: 'Victoria Venture (Mock)',
     investorBioSnippet: 'Seasoned investor with a focus on SaaS and Fintech. Looking for disruptive ideas.',
-    entrepreneurId: 'e1', // Assume current user is e1
+    entrepreneurId: 'defaultUser', // This will be replaced by the current user's ID if they are an entrepreneur
     entrepreneurName: 'Alice Innovator',
     status: 'pending',
     requestedAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
     message: 'Impressed by EcoTech Solutions. Would love to discuss your vision.'
   },
   {
-    id: 'r2',
-    investorId: 'i2',
-    investorName: 'Mark Moneywise',
+    id: 'r2-initial',
+    investorId: 'i2-mock',
+    investorName: 'Mark Moneywise (Mock)',
     investorBioSnippet: 'Early-stage angel investor passionate about impact-driven startups.',
-    entrepreneurId: 'e1',
+    entrepreneurId: 'defaultUser',
     entrepreneurName: 'Alice Innovator',
     status: 'accepted',
-    requestedAt: new Date(Date.now() - 2 * 86400000).toISOString(), // 2 days ago
-  },
-  {
-    id: 'r3',
-    investorId: 'i3',
-    investorName: 'Sarah Strategist',
-    investorBioSnippet: 'VC firm partner specializing in Series A funding for deep tech.',
-    entrepreneurId: 'e1',
-    entrepreneurName: 'Alice Innovator',
-    status: 'rejected',
-    requestedAt: new Date(Date.now() - 3 * 86400000).toISOString(), // 3 days ago
-    message: 'Interesting concept, but not the right fit for our current portfolio focus.'
+    requestedAt: new Date(Date.now() - 2 * 86400000).toISOString(), 
   },
 ];
 
 export default function EntrepreneurDashboardPage() {
-  const [requests, setRequests] = useState<CollaborationRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<CollaborationRequest[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const user = getAuthenticatedUser();
+    setCurrentUser(user);
+    setIsLoading(true);
+
+    if (user && user.role === 'entrepreneur' && typeof window !== 'undefined') {
+      let storedRequests: CollaborationRequest[] = [];
+      const storedRequestsStr = localStorage.getItem('collaborationRequests');
+      
+      if (storedRequestsStr) {
+        storedRequests = JSON.parse(storedRequestsStr);
+      } else {
+        // If no requests in localStorage, use initial mocks and save them
+        // Make sure entrepreneurId in initial mocks matches the current user
+        storedRequests = initialMockRequests.map(req => ({...req, entrepreneurId: user.id, entrepreneurName: user.name}));
+        localStorage.setItem('collaborationRequests', JSON.stringify(storedRequests));
+      }
+      
+      // Filter requests for the current entrepreneur
+      const myRequests = storedRequests.filter(req => req.entrepreneurId === user.id);
+      setRequests(myRequests);
+    }
+    setIsLoading(false);
+  }, []);
+
+  const updateRequestStatusInLocalStorage = (requestId: string, status: CollaborationRequest['status']) => {
+    if (typeof window !== 'undefined') {
+      const storedRequestsStr = localStorage.getItem('collaborationRequests');
+      if (storedRequestsStr) {
+        let allRequests: CollaborationRequest[] = JSON.parse(storedRequestsStr);
+        allRequests = allRequests.map(r => 
+          r.id === requestId ? { ...r, status: status } : r
+        );
+        localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
+      }
+    }
+  };
 
   const handleAccept = (requestId: string) => {
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted' } : r));
+    updateRequestStatusInLocalStorage(requestId, 'accepted');
     toast({ title: "Request Accepted", description: "You can now chat with the investor." });
-    // API call to update status
   };
 
   const handleReject = (requestId: string) => {
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
+    updateRequestStatusInLocalStorage(requestId, 'rejected');
     toast({ title: "Request Rejected", variant: "default" });
-    // API call to update status
   };
 
   const filteredRequests = (status: CollaborationRequest['status']) => requests.filter(r => r.status === status);
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+
+  if (!currentUser || currentUser.role !== 'entrepreneur') {
+    return <p className="text-center py-10 text-muted-foreground">This dashboard is for entrepreneurs.</p>;
+  }
 
   return (
     <div className="space-y-8">
@@ -79,7 +118,7 @@ export default function EntrepreneurDashboardPage() {
         </TabsList>
         <TabsContent value="pending" className="mt-6">
           {filteredRequests('pending').length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRequests('pending').map((request) => (
                 <RequestCard key={request.id} request={request} onAccept={handleAccept} onReject={handleReject} />
               ))}
@@ -88,7 +127,7 @@ export default function EntrepreneurDashboardPage() {
         </TabsContent>
         <TabsContent value="accepted" className="mt-6">
           {filteredRequests('accepted').length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRequests('accepted').map((request) => (
                 <RequestCard key={request.id} request={request} onAccept={handleAccept} onReject={handleReject} />
               ))}
@@ -97,7 +136,7 @@ export default function EntrepreneurDashboardPage() {
         </TabsContent>
         <TabsContent value="rejected" className="mt-6">
           {filteredRequests('rejected').length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRequests('rejected').map((request) => (
                 <RequestCard key={request.id} request={request} onAccept={handleAccept} onReject={handleReject} />
               ))}
