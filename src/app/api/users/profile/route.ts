@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { verifyAuth } from '@/lib/authUtils'; // Assuming you create this utility
 import type { MongoUserDocument, User } from '@/types';
-import type { Collection, ObjectId } from 'mongodb';
+import type { Collection } from 'mongodb'; // ObjectId removed from type-only import
+import { ObjectId } from 'mongodb'; // ObjectId imported as a value
 import { z } from 'zod';
 
 interface AuthenticatedRequest extends NextRequest {
