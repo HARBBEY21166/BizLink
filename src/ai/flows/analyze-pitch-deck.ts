@@ -36,6 +36,7 @@ const prompt = ai.definePrompt({
   name: 'analyzePitchDeckPrompt',
   input: {schema: AnalyzePitchDeckInputSchema},
   output: {schema: AnalyzePitchDeckOutputSchema},
+  // Removed explicit model, will use default from genkit.ts
   prompt: `You are an expert venture capitalist specializing in early-stage startups.
 
 You will be provided with a pitch deck and will analyze it to determine its strengths and weaknesses.
