@@ -64,6 +64,9 @@ export default function LoginForm() {
         localStorage.setItem('bizlinkUser', JSON.stringify(user));
         localStorage.setItem('bizlinkToken', token);
         
+        // Dispatch custom event to notify other components (like UserNav)
+        window.dispatchEvent(new CustomEvent('authChange'));
+        
         toast({
           title: 'Login Successful',
           description: `Welcome back, ${user.name}!`,

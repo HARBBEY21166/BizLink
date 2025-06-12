@@ -18,7 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-// import { mockRegister } from '@/lib/mockAuth'; // Will be replaced by API call
 import { useToast } from '@/hooks/use-toast';
 import type { Role, User } from '@/types';
 import { useState } from 'react';
@@ -32,7 +31,7 @@ const formSchema = z.object({
   role: z.enum(['investor', 'entrepreneur'], { required_error: 'Please select a role.' }),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
-  path: ["confirmPassword"], // path to show error
+  path: ["confirmPassword"], 
 });
 
 export default function RegisterForm() {
@@ -62,7 +61,7 @@ export default function RegisterForm() {
         body: JSON.stringify({
           name: values.name,
           email: values.email,
-          password: values.password, // In a real app, the backend handles hashing.
+          password: values.password,
           role: values.role as Role,
         }),
       });
@@ -79,6 +78,9 @@ export default function RegisterForm() {
       if (user && token && typeof window !== 'undefined') {
         localStorage.setItem('bizlinkUser', JSON.stringify(user));
         localStorage.setItem('bizlinkToken', token);
+        
+        // Dispatch custom event to notify other components (like UserNav)
+        window.dispatchEvent(new CustomEvent('authChange'));
         
         toast({
           title: 'Registration Successful',

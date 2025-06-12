@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,34 +14,46 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User, LayoutDashboard, Brain } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Mock auth functions - replace with actual auth context/hook
-const getMockUser = () => {
-  if (typeof window !== 'undefined') {
-    const userStr = localStorage.getItem('bizlinkUser');
-    return userStr ? JSON.parse(userStr) : null;
-  }
-  return null;
-};
-
-const mockLogout = (router: ReturnType<typeof useRouter>) => {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('bizlinkUser');
-    localStorage.removeItem('bizlinkToken');
-  }
-  router.push('/login');
-};
-
-
 export default function UserNav() {
-  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role: string, avatarUrl?: string } | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    setUser(getMockUser());
+  const fetchUser = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('bizlinkUser');
+      setUser(userStr ? JSON.parse(userStr) : null);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchUser(); // Initial fetch
+
+    const handleAuthChange = () => {
+      fetchUser();
+    };
+
+    window.addEventListener('authChange', handleAuthChange);
+    // Also listen to general storage events, though custom event is more reliable for this case
+    window.addEventListener('storage', handleAuthChange); 
+
+    return () => {
+      window.removeEventListener('authChange', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
+  }, [fetchUser]);
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bizlinkUser');
+      localStorage.removeItem('bizlinkToken');
+      window.dispatchEvent(new CustomEvent('authChange')); // Notify of auth change
+    }
+    router.push('/login');
+    // setUser(null); // This will be handled by the event listener
+  };
 
   if (!user) {
     return (
@@ -55,7 +68,7 @@ export default function UserNav() {
     );
   }
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string = "") => {
     return name
       .split(' ')
       .map((n) => n[0])
@@ -64,13 +77,14 @@ export default function UserNav() {
   };
   
   const dashboardPath = user.role === 'investor' ? '/dashboard/investor' : '/dashboard/entrepreneur';
+  const avatarSrc = user.avatarUrl || `https://placehold.co/100x100.png?text=${getInitials(user.name)}`;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={`https://placehold.co/100x100.png?text=${getInitials(user.name)}`} alt={user.name} data-ai-hint="user avatar" />
+            <AvatarImage src={avatarSrc} alt={user.name} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
         </Button>
@@ -108,7 +122,7 @@ export default function UserNav() {
           )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => mockLogout(router)}>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>
