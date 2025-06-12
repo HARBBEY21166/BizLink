@@ -2,9 +2,10 @@
 export type Role = 'investor' | 'entrepreneur';
 
 export interface User {
-  id: string;
+  id: string; // Will be MongoDB's _id as string
   name: string;
   email: string;
+  password?: string; // Should always be hashed in DB, optional on client
   role: Role;
   bio?: string;
   startupDescription?: string; // Entrepreneur only
@@ -12,7 +13,7 @@ export interface User {
   pitchDeckUrl?: string; // Entrepreneur only - URL to stored pitch deck
   investmentInterests?: string[]; // Investor only
   portfolioCompanies?: string[]; // Investor only
-  createdAt: string;
+  createdAt: string; // ISO Date string
   avatarUrl?: string; // Optional: URL to avatar image
   isOnline?: boolean; // For chat status
   dataAiHint?: string; // For placeholder image generation

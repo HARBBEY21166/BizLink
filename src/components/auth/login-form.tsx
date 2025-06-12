@@ -17,14 +17,14 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { mockLogin } from '@/lib/mockAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import type { User } from '@/types';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
-  password: z.string().min(1, { message: 'Password is required.' }), // Basic validation, enhance as needed
+  password: z.string().min(1, { message: 'Password is required.' }),
 });
 
 export default function LoginForm() {
@@ -43,32 +43,46 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      // In a real app, password would be sent and verified by backend.
-      // Mock login only needs email for this simplified version.
-      const user = await mockLogin(values.email);
-      if (user) {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed. Please try again.');
+      }
+      
+      const user: User = data.user;
+      const token: string = data.token;
+
+      if (user && token && typeof window !== 'undefined') {
+        localStorage.setItem('bizlinkUser', JSON.stringify(user));
+        localStorage.setItem('bizlinkToken', token);
+        
         toast({
           title: 'Login Successful',
           description: `Welcome back, ${user.name}!`,
         });
-        // Redirect based on role
+
         if (user.role === 'investor') {
           router.push('/dashboard/investor');
         } else {
           router.push('/dashboard/entrepreneur');
         }
       } else {
-        toast({
-          variant: 'destructive',
-          title: 'Login Failed',
-          description: 'Invalid email or password. Please try again.',
-        });
+         throw new Error('Invalid response from server.');
       }
+
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'An error occurred',
-        description: 'Something went wrong. Please try again later.',
+        title: 'Login Failed',
+        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
       });
     } finally {
       setIsLoading(false);
