@@ -5,6 +5,8 @@ import clientPromise from '@/lib/mongodb';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { User } from '@/types';
+import type { Collection } from 'mongodb';
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,8 +17,10 @@ export async function POST(req: NextRequest) {
     }
 
     const client = await clientPromise;
-    const db = client.db();
-    const usersCollection = db.collection<User & { _id: import('mongodb').ObjectId }>('users');
+    const dbName = process.env.MONGODB_DB_NAME || 'bizlink_db'; // Fallback just in case
+    const db = client.db(dbName);
+    const usersCollection: Collection<User & { _id: import('mongodb').ObjectId }> = db.collection('users');
+
 
     const userDocument = await usersCollection.findOne({ email });
 
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
 
-    const passwordMatch = await bcrypt.compare(password, userDocument.password as string); // Assuming password in DB is string
+    const passwordMatch = await bcrypt.compare(password, userDocument.password as string); 
     if (!passwordMatch) {
       return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
@@ -34,7 +38,7 @@ export async function POST(req: NextRequest) {
         name: userDocument.name,
         email: userDocument.email,
         role: userDocument.role,
-        createdAt: userDocument.createdAt, // Ensure this is stored as ISO string or convert
+        createdAt: typeof userDocument.createdAt === 'string' ? userDocument.createdAt : new Date(userDocument.createdAt).toISOString(),
         bio: userDocument.bio,
         avatarUrl: userDocument.avatarUrl,
         isOnline: userDocument.isOnline,

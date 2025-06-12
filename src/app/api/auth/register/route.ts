@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
     }
 
     const client = await clientPromise;
-    const db = client.db(); // You can specify your DB name here if it's not in the MONGODB_URI
+    const dbName = process.env.MONGODB_DB_NAME || 'bizlink_db'; // Fallback just in case, but .env should provide it
+    const db = client.db(dbName); 
     const usersCollection = db.collection<Omit<User, 'id'>>('users');
 
     const existingUser = await usersCollection.findOne({ email });
@@ -32,16 +33,17 @@ export async function POST(req: NextRequest) {
     const newUser: Omit<User, 'id' | 'createdAt'> & { createdAt: Date } = {
       name,
       email,
-      password: hashedPassword, // Store the hashed password
+      password: hashedPassword, 
       role,
       bio: '',
       createdAt: new Date(),
-      // Initialize role-specific fields
-      ...(role === 'entrepreneur' && { startupDescription: '', fundingNeed: '' }),
+      avatarUrl: '',
+      isOnline: false,
+      ...(role === 'entrepreneur' && { startupDescription: '', fundingNeed: '', pitchDeckUrl: '' }),
       ...(role === 'investor' && { investmentInterests: [], portfolioCompanies: [] }),
     };
 
-    const result = await usersCollection.insertOne(newUser as any); // InsertedId is ObjectId
+    const result = await usersCollection.insertOne(newUser as any); 
 
     if (!result.insertedId) {
         return NextResponse.json({ message: 'Failed to create user' }, { status: 500 });
@@ -54,9 +56,12 @@ export async function POST(req: NextRequest) {
         role: newUser.role,
         createdAt: newUser.createdAt.toISOString(),
         bio: newUser.bio,
+        avatarUrl: newUser.avatarUrl,
+        isOnline: newUser.isOnline,
         ...(newUser.role === 'entrepreneur' && { 
             startupDescription: newUser.startupDescription, 
-            fundingNeed: newUser.fundingNeed 
+            fundingNeed: newUser.fundingNeed,
+            pitchDeckUrl: newUser.pitchDeckUrl
         }),
         ...(newUser.role === 'investor' && { 
             investmentInterests: newUser.investmentInterests, 
@@ -68,10 +73,9 @@ export async function POST(req: NextRequest) {
     const token = jwt.sign(
       { userId: createdUser.id, role: createdUser.role, email: createdUser.email },
       process.env.JWT_SECRET!,
-      { expiresIn: '1d' } // Token expires in 1 day
+      { expiresIn: '1d' } 
     );
 
-    // Return the user object (without password) and token
     return NextResponse.json({ user: createdUser, token }, { status: 201 });
 
   } catch (error) {
