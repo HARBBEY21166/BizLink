@@ -1,37 +1,91 @@
+
 'use client';
 
 import ProfileDisplay from '@/components/dashboard/profile/profile-display';
 import ProfileEditForm from '@/components/dashboard/profile/profile-edit-form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { User } from '@/types';
-import { getAuthenticatedUser } from '@/lib/mockAuth';
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const fetchedUser = getAuthenticatedUser();
-    setUser(fetchedUser);
-    setIsLoading(false);
+    async function fetchUserProfile() {
+      setIsLoading(true);
+      setError(null);
+      const token = localStorage.getItem('bizlinkToken');
+      if (!token) {
+        setError("Not authenticated.");
+        setIsLoading(false);
+        // Optionally redirect to login
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/users/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch profile');
+        }
+        const userData: User = await response.json();
+        setUser(userData);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchUserProfile();
   }, []);
 
   const handleSaveProfile = async (updatedUserData: Partial<User>) => {
-    // In a real app, this would be an API call
-    return new Promise<void>((resolve) => {
-      setTimeout(() => { // Simulate API delay
-        if (user) {
-          const newUser = { ...user, ...updatedUserData };
-          setUser(newUser);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('bizlinkUser', JSON.stringify(newUser));
-          }
-        }
-        resolve();
-      }, 1000);
-    });
+    setIsLoading(true); // Consider a different loading state for save operation
+    const token = localStorage.getItem('bizlinkToken');
+    if (!token) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Authentication token not found.' });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedUserData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update profile');
+      }
+      const savedUser: User = await response.json();
+      setUser(savedUser); // Update local state with the saved user data
+      localStorage.setItem('bizlinkUser', JSON.stringify(savedUser)); // Update localStorage as well
+      toast({ title: 'Profile Updated', description: 'Your profile has been saved successfully.' });
+    } catch (error) {
+      console.error('Save profile error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error instanceof Error ? error.message : 'Could not save profile changes.',
+      });
+    } finally {
+      setIsLoading(false); // Reset loading state
+    }
   };
 
   if (isLoading) {
@@ -42,8 +96,12 @@ export default function ProfilePage() {
     );
   }
 
+  if (error) {
+    return <p className="text-center text-destructive">Error: {error}. Please try logging in again.</p>;
+  }
+
   if (!user) {
-    return <p className="text-center text-muted-foreground">User not found. Please log in.</p>;
+    return <p className="text-center text-muted-foreground">User not found or not authenticated. Please log in.</p>;
   }
 
   return (

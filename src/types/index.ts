@@ -1,11 +1,12 @@
 
 export type Role = 'investor' | 'entrepreneur';
 
+// Represents the User object as it is typically used on the client-side
+// and returned by APIs (excluding sensitive data like password).
 export interface User {
-  id: string; // Will be MongoDB's _id as string
+  id: string; // MongoDB _id as string
   name: string;
-  email: string;
-  password?: string; // Should always be hashed in DB, optional on client
+  email: string; // Email is included for identification, but password is not
   role: Role;
   bio?: string;
   startupDescription?: string; // Entrepreneur only
@@ -15,9 +16,29 @@ export interface User {
   portfolioCompanies?: string[]; // Investor only
   createdAt: string; // ISO Date string
   avatarUrl?: string; // Optional: URL to avatar image
-  isOnline?: boolean; // For chat status
+  isOnline?: boolean; // For chat status - will remain simple boolean for now
   dataAiHint?: string; // For placeholder image generation
 }
+
+// Represents the full User document as stored in MongoDB, including the hashed password.
+// This type should generally not be exposed directly to the client.
+export interface MongoUserDocument {
+  _id: import('mongodb').ObjectId;
+  name: string;
+  email: string;
+  password: string; // Hashed password
+  role: Role;
+  bio?: string;
+  startupDescription?: string;
+  fundingNeed?: string;
+  pitchDeckUrl?: string;
+  investmentInterests?: string[];
+  portfolioCompanies?: string[];
+  createdAt: Date; // Stored as BSON Date
+  avatarUrl?: string;
+  isOnline?: boolean;
+}
+
 
 export interface CollaborationRequest {
   id: string;

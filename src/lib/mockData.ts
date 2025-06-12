@@ -2,8 +2,9 @@
 // src/lib/mockData.ts
 import type { User, CollaborationRequest } from '@/types';
 
-// Centralized mock user data
-export const allMockUsers: User[] = [
+// Centralized mock user data - NO LONGER USED FOR DYNAMIC USER LISTING OR PROFILES
+// Kept for potential use in other mock scenarios or as a reference.
+export const allMockUsers_DEPRECATED: User[] = [
   {
     id: 'e1',
     name: 'Alice Innovator',
@@ -19,58 +20,6 @@ export const allMockUsers: User[] = [
     isOnline: true,
   },
   {
-    id: 'e2',
-    name: 'Bob Builder',
-    email: 'bob@example.com',
-    role: 'entrepreneur',
-    bio: 'Building the next generation of AI-powered educational tools. Passionate about transforming learning experiences.',
-    startupDescription: 'LearnAI Co.',
-    fundingNeed: '$250,000',
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'man construction',
-    isOnline: false,
-  },
-  {
-    id: 'e3',
-    name: 'Carol Creator',
-    email: 'carol@example.com',
-    role: 'entrepreneur',
-    bio: 'Developing a platform for independent artists to monetize their work. Strong focus on community and fair compensation.',
-    startupDescription: 'Artify Hub',
-    fundingNeed: '$1M',
-    createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'woman artist',
-    isOnline: true,
-  },
-  {
-    id: 'e4',
-    name: 'David Developer',
-    email: 'david@example.com',
-    role: 'entrepreneur',
-    bio: 'Creating innovative mobile applications for productivity and lifestyle improvements. Experienced in full-stack development.',
-    startupDescription: 'AppWorks Studio',
-    fundingNeed: '$300,000',
-    createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'man software',
-    isOnline: false,
-  },
-  {
-    id: 'e5',
-    name: 'Eva Ecommerce',
-    email: 'eva@example.com',
-    role: 'entrepreneur',
-    bio: 'Building a niche e-commerce platform for handcrafted goods. Focus on ethical sourcing and artisan empowerment.',
-    startupDescription: 'Artisan Collective',
-    fundingNeed: '$150,000',
-    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'woman business',
-    isOnline: true,
-  },
-  {
     id: 'i1',
     name: 'Victoria Venture',
     email: 'victoria@example.com',
@@ -83,90 +32,59 @@ export const allMockUsers: User[] = [
     dataAiHint: 'woman investor',
     isOnline: true,
   },
-  {
-    id: 'i2',
-    name: 'Mark Moneywise',
-    email: 'mark@example.com',
-    role: 'investor',
-    bio: 'Early-stage angel investor passionate about impact-driven startups and consumer tech.',
-    investmentInterests: ['Social Impact', 'Consumer Tech', 'EdTech'],
-    portfolioCompanies: ['GreenSteps Co.', 'ConnectApp'],
-    createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'man finance',
-    isOnline: false,
-  },
-  {
-    id: 'i3',
-    name: 'Sarah Strategist',
-    email: 'sarah@example.com',
-    role: 'investor',
-    bio: 'Strategic investor with a background in scaling B2B software companies. Looking for Series A opportunities.',
-    investmentInterests: ['B2B Software', 'Enterprise Solutions', 'Cybersecurity'],
-    portfolioCompanies: ['ScaleUp Inc.', 'SecureNet Ltd.'],
-    createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-    avatarUrl: 'https://placehold.co/150x150.png',
-    dataAiHint: 'woman corporate',
-    isOnline: true,
-  }
+  // Add other mock users if needed for specific non-dynamic scenarios
 ];
 
-export const getMockUserById = (userId: string): User | undefined => {
-  return allMockUsers.find(user => user.id === userId);
+// NO LONGER USED for fetching profiles dynamically. Use API calls instead.
+export const getMockUserById_DEPRECATED = (userId: string): User | undefined => {
+  // console.warn("getMockUserById_DEPRECATED is called. This should be replaced by an API call.");
+  // return allMockUsers_DEPRECATED.find(user => user.id === userId);
+  return undefined; 
 };
 
+
+// Collaboration requests might still use localStorage for now until backend is built for it.
 export const initialMockRequests: Omit<CollaborationRequest, 'id' | 'requestedAt'>[] = [
   {
-    investorId: 'i1',
+    investorId: 'i1', // Corresponds to a potential ID from your DB if Victoria Venture exists
     investorName: 'Victoria Venture',
     investorBioSnippet: 'Seasoned investor with a focus on SaaS and Fintech.',
-    entrepreneurId: 'e1',
+    entrepreneurId: 'e1', // Corresponds to a potential ID from your DB if Alice Innovator exists
     entrepreneurName: 'Alice Innovator',
     entrepreneurStartup: 'EcoTech Solutions',
     status: 'pending',
     message: 'Impressed by EcoTech Solutions. Would love to discuss your vision.'
   },
-  {
-    investorId: 'i2',
-    investorName: 'Mark Moneywise',
-    investorBioSnippet: 'Early-stage angel investor passionate about impact-driven startups.',
-    entrepreneurId: 'e2',
-    entrepreneurName: 'Bob Builder',
-    entrepreneurStartup: 'LearnAI Co.',
-    status: 'accepted',
-    message: 'Your AI education tool looks promising. Let\'s connect.'
-  },
-  {
-    investorId: 'i3',
-    investorName: 'Sarah Strategist',
-    investorBioSnippet: 'Strategic investor with a background in scaling B2B software companies.',
-    entrepreneurId: 'e1', // Another request for Alice
-    entrepreneurName: 'Alice Innovator',
-    entrepreneurStartup: 'EcoTech Solutions',
-    status: 'pending',
-    message: 'Interested in learning more about EcoTech\'s go-to-market strategy.'
-  },
+  // ... other mock requests
 ];
 
+// This function needs to be re-evaluated if collaboration requests move to backend.
 export const getCollaborationRequests = (currentEntrepreneurId?: string): CollaborationRequest[] => {
   if (typeof window !== 'undefined') {
     const storedRequestsStr = localStorage.getItem('collaborationRequests');
     if (storedRequestsStr) {
       const storedRequests = JSON.parse(storedRequestsStr) as CollaborationRequest[];
       if (currentEntrepreneurId) {
+        // Ensure that investorId and entrepreneurId in stored requests actually correspond to users
+        // that would exist in the database.
         return storedRequests.filter(req => req.entrepreneurId === currentEntrepreneurId);
       }
       return storedRequests;
     } else if (currentEntrepreneurId) {
-      const entrepreneurRequests = initialMockRequests
-        .filter(reqBase => reqBase.entrepreneurId === currentEntrepreneurId)
-        .map((reqBase, index) => ({
-          ...reqBase,
-          id: `req-${Date.now()}-${index}`,
-          requestedAt: new Date(Date.now() - (index + 1) * 86400000).toISOString(),
-        }));
-      localStorage.setItem('collaborationRequests', JSON.stringify(entrepreneurRequests));
-      return entrepreneurRequests;
+      // This part for initializing from initialMockRequests might become problematic
+      // if the IDs (e1, i1) don't match actual database IDs.
+      // It's safer to assume localStorage is populated by actual interactions or a seeding process.
+      // For now, let's return empty if not found, to avoid creating requests with potentially invalid mock IDs.
+      // const entrepreneurRequests = initialMockRequests
+      //   .filter(reqBase => reqBase.entrepreneurId === currentEntrepreneurId)
+      //   .map((reqBase, index) => ({
+      //     ...reqBase,
+      //     id: `req-${Date.now()}-${index}`,
+      //     requestedAt: new Date(Date.now() - (index + 1) * 86400000).toISOString(),
+      //   }));
+      // localStorage.setItem('collaborationRequests', JSON.stringify(entrepreneurRequests));
+      // return entrepreneurRequests;
+      return [];
     }
   }
   return [];

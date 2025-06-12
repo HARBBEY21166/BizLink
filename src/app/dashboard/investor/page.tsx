@@ -7,20 +7,44 @@ import type { User } from '@/types';
 import { Search, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
-import { allMockUsers } from '@/lib/mockData'; // Import allMockUsers
 
 export default function InvestorDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [entrepreneurs, setEntrepreneurs] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Filter entrepreneurs from allMockUsers
-  const entrepreneurs = allMockUsers.filter(user => user.role === 'entrepreneur');
-
   useEffect(() => {
     const user = getAuthenticatedUser();
     setCurrentUser(user);
-    setIsLoading(false);
+
+    async function fetchEntrepreneurs() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/users?role=entrepreneur');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to fetch entrepreneurs: ${response.statusText}`);
+        }
+        const data: User[] = await response.json();
+        setEntrepreneurs(data);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    if (user && user.role === 'investor') {
+      fetchEntrepreneurs();
+    } else if (user) {
+      setIsLoading(false);
+    } else {
+      setIsLoading(false);
+    }
   }, []);
 
   const filteredEntrepreneurs = entrepreneurs.filter(e =>
@@ -29,13 +53,11 @@ export default function InvestorDashboardPage() {
     (e.bio && e.bio.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (isLoading) {
+  if (!currentUser) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  if (!currentUser || currentUser.role !== 'investor') {
-    // This case should ideally be handled by the DashboardLayout's role protection,
-    // but kept here as a fallback.
+  if (currentUser.role !== 'investor') {
     return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for investors.</p>;
   }
 
@@ -54,13 +76,18 @@ export default function InvestorDashboardPage() {
         </div>
       </div>
 
-      {filteredEntrepreneurs.length > 0 ? (
+      {isLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+      {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
+      
+      {!isLoading && !error && filteredEntrepreneurs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredEntrepreneurs.map((entrepreneur) => (
             <EntrepreneurCard key={entrepreneur.id} entrepreneur={entrepreneur} />
           ))}
         </div>
-      ) : (
+      ) : null}
+
+      {!isLoading && !error && filteredEntrepreneurs.length === 0 && (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">No entrepreneurs found matching your search.</p>
           <p className="text-sm text-muted-foreground">Try different keywords or check back later.</p>

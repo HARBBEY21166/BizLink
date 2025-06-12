@@ -2,41 +2,77 @@
 'use client';
 
 import ProfileDisplay from '@/components/dashboard/profile/profile-display';
-import { getMockUserById } from '@/lib/mockData';
 import type { User } from '@/types';
 import { Loader2, UserX } from 'lucide-react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { getAuthenticatedUser } from '@/lib/mockAuth';
+import { getAuthenticatedUser } from '@/lib/mockAuth'; // For current user context
 
 export default function UserProfilePage() {
   const params = useParams();
+  const router = useRouter();
   const userId = params.userId as string;
   
-  const [profileUser, setProfileUser] = useState<User | null | undefined>(undefined); // undefined for loading, null for not found
+  const [profileUser, setProfileUser] = useState<User | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const authUser = getAuthenticatedUser();
+    const authUser = getAuthenticatedUser(); // Get currently logged-in user
     setCurrentUser(authUser);
 
-    if (userId) {
-      // Simulate API call to fetch user by ID
-      const fetchedUser = getMockUserById(userId);
-      setProfileUser(fetchedUser || null);
+    if (authUser && authUser.id === userId) {
+      router.replace('/dashboard/profile'); // Redirect to own profile page
+      return;
     }
-    setIsLoading(false);
-  }, [userId]);
 
-  if (isLoading || profileUser === undefined) {
+    async function fetchUserProfile() {
+      if (!userId) {
+        setError("User ID is missing.");
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch(`/api/users/${userId}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+             setProfileUser(null); // Explicitly set to null for "not found"
+          } else {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to fetch user profile');
+          }
+        } else {
+          const userData: User = await response.json();
+          setProfileUser(userData);
+        }
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+        setProfileUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchUserProfile();
+  }, [userId, router]);
+
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (error && !profileUser) { // Show general error if profileUser is not set to null specifically for 404
+     return <p className="text-center text-destructive">Error: {error}</p>;
   }
 
   if (!profileUser) {
@@ -56,20 +92,6 @@ export default function UserProfilePage() {
     );
   }
   
-  // Do not allow users to see their own profile through this dynamic route, redirect to main profile page
-  if (currentUser && currentUser.id === profileUser.id) {
-    if (typeof window !== 'undefined') {
-      window.location.href = '/dashboard/profile';
-    }
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4">Redirecting to your profile...</p>
-      </div>
-    );
-  }
-
-
   return (
     <div className="space-y-8">
       <h1 className="font-headline text-3xl font-bold text-foreground">
@@ -78,7 +100,7 @@ export default function UserProfilePage() {
       <ProfileDisplay user={profileUser} />
        <div className="mt-6 text-center">
          <Button asChild variant="outline">
-            <Link href={currentUser?.role === 'investor' ? '/dashboard/investor' : '/dashboard/entrepreneur'}>
+            <Link href={currentUser?.role === 'investor' ? '/dashboard/investor' : (currentUser?.role === 'entrepreneur' ? '/dashboard/entrepreneur' : '/dashboard')}>
                 Back to Dashboard
             </Link>
          </Button>

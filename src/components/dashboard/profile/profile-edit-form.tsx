@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import type { User, Role } from '@/types';
-import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import type { User } from '@/types';
+// import { useToast } from '@/hooks/use-toast'; // Toast is handled by parent page
+import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ProfileEditFormProps {
@@ -18,39 +18,43 @@ interface ProfileEditFormProps {
   onSave: (updatedUser: Partial<User>) => Promise<void>;
 }
 
+// Schemas need to align with what the backend PUT /api/users/profile expects
 const commonSchema = {
-  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-  bio: z.string().max(500, { message: 'Bio cannot exceed 500 characters.' }).optional(),
+  name: z.string().min(2, { message: 'Name must be at least 2 characters.' }).optional(),
+  bio: z.string().max(500, { message: 'Bio cannot exceed 500 characters.' }).optional().or(z.literal('')),
   avatarUrl: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 };
 
 const entrepreneurSchema = z.object({
   ...commonSchema,
-  role: z.literal('entrepreneur'),
-  startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional(),
-  fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional(),
+  role: z.literal('entrepreneur').optional(), // Role shouldn't be editable here
+  startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional().or(z.literal('')),
+  fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional().or(z.literal('')),
   pitchDeckUrl: z.string().url({message: "Please enter a valid URL for your pitch deck."}).optional().or(z.literal('')),
 });
 
 const investorSchema = z.object({
   ...commonSchema,
-  role: z.literal('investor'),
-  investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : []),
-  portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : []),
+  role: z.literal('investor').optional(), // Role shouldn't be editable here
+  investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
+  portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
 });
 
-const formSchema = z.union([entrepreneurSchema, investorSchema]);
 
 export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) {
-  const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+  // const { toast } = useToast(); // Parent handles toast
+  const [isSaving, setIsSaving] = useState(false);
   
   const currentSchema = user.role === 'entrepreneur' ? entrepreneurSchema : investorSchema;
 
   const form = useForm<z.infer<typeof currentSchema>>({
     resolver: zodResolver(currentSchema),
-    defaultValues: {
-      role: user.role,
+    // Default values should be set once, typically not in useEffect for controlled forms unless user prop changes identity
+  });
+
+  // Effect to reset form when user prop changes (e.g., after successful save and re-fetch)
+  useEffect(() => {
+    form.reset({
       name: user.name || '',
       bio: user.bio || '',
       avatarUrl: user.avatarUrl || '',
@@ -63,25 +67,23 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
         investmentInterests: user.investmentInterests?.join(', ') || '',
         portfolioCompanies: user.portfolioCompanies?.join(', ') || '',
       } : {}),
-    },
-  });
+    });
+  }, [user, form]);
+
 
   async function onSubmit(values: z.infer<typeof currentSchema>) {
-    setIsLoading(true);
+    setIsSaving(true);
+    // Remove 'role' if it exists in values, as it's not meant to be updated here
+    const { role, ...updateData } = values;
+
     try {
-      await onSave(values as Partial<User>); // Cast is okay due to discriminated union setup
-      toast({
-        title: 'Profile Updated',
-        description: 'Your profile information has been saved successfully.',
-      });
+      await onSave(updateData as Partial<User>);
+      // Toast is handled by parent page
     } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Update Failed',
-        description: 'Could not save profile changes. Please try again.',
-      });
+      // Error handling/toast also by parent
+      console.error("Profile save from form failed:", error);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   }
 
@@ -110,7 +112,7 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
               <FormControl>
                 <Input placeholder="https://example.com/avatar.png" {...field} />
               </FormControl>
-              <FormDescription>Link to your profile picture.</FormDescription>
+              <FormDescription>Link to your profile picture (e.g., from a service like Imgur or a public URL).</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -166,7 +168,7 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
                   <FormControl>
                     <Input placeholder="https://example.com/pitchdeck.pdf" {...field} />
                   </FormControl>
-                  <FormDescription>Link to your pitch deck (e.g., Google Drive, Dropbox).</FormDescription>
+                  <FormDescription>Link to your pitch deck (e.g., Google Drive, Dropbox, DocSend).</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -207,8 +209,8 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
           </>
         )}
         
-        <Button type="submit" className="font-semibold" disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" className="font-semibold" disabled={isSaving}>
+          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save Changes
         </Button>
       </form>

@@ -5,21 +5,48 @@ import InvestorCard from '@/components/dashboard/discover-investors/investor-car
 import { Input } from '@/components/ui/input';
 import type { User } from '@/types';
 import { Search, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { getAuthenticatedUser } from '@/lib/mockAuth';
-import { allMockUsers } from '@/lib/mockData'; 
+import { useEffect, useState, useCallback } from 'react';
+import { getAuthenticatedUser } from '@/lib/mockAuth'; // Still used for current user context
 
 export default function DiscoverInvestorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [investors, setInvestors] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const investors = allMockUsers.filter(user => user.role === 'investor');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const user = getAuthenticatedUser();
+    const user = getAuthenticatedUser(); // Get local user for role check
     setCurrentUser(user);
-    setIsLoading(false);
+    
+    async function fetchInvestors() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch('/api/users?role=investor');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || `Failed to fetch investors: ${response.statusText}`);
+        }
+        const data: User[] = await response.json();
+        setInvestors(data);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    if (user && user.role === 'entrepreneur') {
+      fetchInvestors();
+    } else if (user) {
+      // User is not an entrepreneur, deny access or redirect
+      setIsLoading(false); 
+    } else {
+        // No authenticated user
+        setIsLoading(false);
+    }
   }, []);
 
   const filteredInvestors = investors.filter(i =>
@@ -28,11 +55,11 @@ export default function DiscoverInvestorsPage() {
     (i.investmentInterests && i.investmentInterests.join(', ').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (isLoading) {
+  if (!currentUser) { // If auth check is also loading or no user
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
-
-  if (!currentUser || currentUser.role !== 'entrepreneur') {
+  
+  if (currentUser.role !== 'entrepreneur') {
     return <p className="text-center py-10 text-muted-foreground">Access Denied. This page is for entrepreneurs.</p>;
   }
 
@@ -51,15 +78,20 @@ export default function DiscoverInvestorsPage() {
         </div>
       </div>
 
-      {filteredInvestors.length > 0 ? (
+      {isLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+      {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
+      
+      {!isLoading && !error && filteredInvestors.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredInvestors.map((investor) => (
             <InvestorCard key={investor.id} investor={investor} />
           ))}
         </div>
-      ) : (
+      ) : null}
+
+      {!isLoading && !error && filteredInvestors.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-xl text-muted-foreground">No investors found matching your search.</p>
+          <p className="text-xl text-muted-foreground">No investors found matching your search criteria.</p>
           <p className="text-sm text-muted-foreground">Try different keywords or check back later.</p>
         </div>
       )}
