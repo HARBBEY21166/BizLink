@@ -1,4 +1,6 @@
 
+import type { ObjectId as MongoObjectId } from 'mongodb';
+
 export type Role = 'investor' | 'entrepreneur';
 
 // Represents the User object as it is typically used on the client-side
@@ -23,7 +25,7 @@ export interface User {
 // Represents the full User document as stored in MongoDB, including the hashed password.
 // This type should generally not be exposed directly to the client.
 export interface MongoUserDocument {
-  _id: import('mongodb').ObjectId;
+  _id: MongoObjectId;
   name: string;
   email: string;
   password: string; // Hashed password
@@ -40,18 +42,34 @@ export interface MongoUserDocument {
 }
 
 
+// Client-facing Collaboration Request
 export interface CollaborationRequest {
-  id: string;
-  investorId: string;
+  id: string; // MongoDB _id as string
+  investorId: string; // investor's User ID (string)
   investorName: string; // denormalized for easy display
   investorBioSnippet?: string; // denormalized
-  entrepreneurId: string;
+  entrepreneurId: string; // entrepreneur's User ID (string)
   entrepreneurName: string; // denormalized
   entrepreneurStartup?: string; // denormalized
   status: 'pending' | 'accepted' | 'rejected';
-  requestedAt: string;
+  requestedAt: string; // ISO Date string
   message?: string; // Initial message with request
 }
+
+// Collaboration Request document as stored in MongoDB
+export interface MongoCollaborationRequestDocument {
+  _id: MongoObjectId;
+  investorId: MongoObjectId; // Reference to User._id
+  investorName: string;
+  investorBioSnippet?: string;
+  entrepreneurId: MongoObjectId; // Reference to User._id
+  entrepreneurName: string;
+  entrepreneurStartup?: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  requestedAt: Date; // Stored as BSON Date
+  message?: string;
+}
+
 
 export interface ChatMessage {
   id: string;
@@ -77,3 +95,4 @@ export interface PitchAnalysis {
   weaknesses: string;
   advice: string;
 }
+

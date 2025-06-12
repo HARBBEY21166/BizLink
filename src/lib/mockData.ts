@@ -38,54 +38,39 @@ export const allMockUsers_DEPRECATED: User[] = [
 // NO LONGER USED for fetching profiles dynamically. Use API calls instead.
 export const getMockUserById_DEPRECATED = (userId: string): User | undefined => {
   // console.warn("getMockUserById_DEPRECATED is called. This should be replaced by an API call.");
-  // return allMockUsers_DEPRECATED.find(user => user.id === userId);
   return undefined; 
 };
 
 
-// Collaboration requests might still use localStorage for now until backend is built for it.
-export const initialMockRequests: Omit<CollaborationRequest, 'id' | 'requestedAt'>[] = [
-  {
-    investorId: 'i1', // Corresponds to a potential ID from your DB if Victoria Venture exists
-    investorName: 'Victoria Venture',
-    investorBioSnippet: 'Seasoned investor with a focus on SaaS and Fintech.',
-    entrepreneurId: 'e1', // Corresponds to a potential ID from your DB if Alice Innovator exists
-    entrepreneurName: 'Alice Innovator',
-    entrepreneurStartup: 'EcoTech Solutions',
-    status: 'pending',
-    message: 'Impressed by EcoTech Solutions. Would love to discuss your vision.'
-  },
-  // ... other mock requests
+// Collaboration requests are now handled by the backend.
+// These mock functions and data are no longer used for dynamic application logic.
+export const initialMockRequests_DEPRECATED: Omit<CollaborationRequest, 'id' | 'requestedAt'>[] = [
+  // {
+  //   investorId: 'i1', 
+  //   investorName: 'Victoria Venture',
+  //   investorBioSnippet: 'Seasoned investor with a focus on SaaS and Fintech.',
+  //   entrepreneurId: 'e1', 
+  //   entrepreneurName: 'Alice Innovator',
+  //   entrepreneurStartup: 'EcoTech Solutions',
+  //   status: 'pending',
+  //   message: 'Impressed by EcoTech Solutions. Would love to discuss your vision.'
+  // },
 ];
 
-// This function needs to be re-evaluated if collaboration requests move to backend.
-export const getCollaborationRequests = (currentEntrepreneurId?: string): CollaborationRequest[] => {
-  if (typeof window !== 'undefined') {
-    const storedRequestsStr = localStorage.getItem('collaborationRequests');
-    if (storedRequestsStr) {
-      const storedRequests = JSON.parse(storedRequestsStr) as CollaborationRequest[];
-      if (currentEntrepreneurId) {
-        // Ensure that investorId and entrepreneurId in stored requests actually correspond to users
-        // that would exist in the database.
-        return storedRequests.filter(req => req.entrepreneurId === currentEntrepreneurId);
-      }
-      return storedRequests;
-    } else if (currentEntrepreneurId) {
-      // This part for initializing from initialMockRequests might become problematic
-      // if the IDs (e1, i1) don't match actual database IDs.
-      // It's safer to assume localStorage is populated by actual interactions or a seeding process.
-      // For now, let's return empty if not found, to avoid creating requests with potentially invalid mock IDs.
-      // const entrepreneurRequests = initialMockRequests
-      //   .filter(reqBase => reqBase.entrepreneurId === currentEntrepreneurId)
-      //   .map((reqBase, index) => ({
-      //     ...reqBase,
-      //     id: `req-${Date.now()}-${index}`,
-      //     requestedAt: new Date(Date.now() - (index + 1) * 86400000).toISOString(),
-      //   }));
-      // localStorage.setItem('collaborationRequests', JSON.stringify(entrepreneurRequests));
-      // return entrepreneurRequests;
-      return [];
-    }
-  }
+export const getCollaborationRequests_DEPRECATED = (currentEntrepreneurId?: string): CollaborationRequest[] => {
+  // console.warn("getCollaborationRequests_DEPRECATED is called. This should be replaced by API calls.");
+  // if (typeof window !== 'undefined') {
+  //   const storedRequestsStr = localStorage.getItem('collaborationRequests');
+  //   if (storedRequestsStr) {
+  //     const storedRequests = JSON.parse(storedRequestsStr) as CollaborationRequest[];
+  //     if (currentEntrepreneurId) {
+  //       return storedRequests.filter(req => req.entrepreneurId === currentEntrepreneurId);
+  //     }
+  //     return storedRequests;
+  //   } else if (currentEntrepreneurId) {
+  //     return [];
+  //   }
+  // }
   return [];
 };
+

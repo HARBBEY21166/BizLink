@@ -4,11 +4,11 @@
 import RequestCard from '@/components/dashboard/entrepreneur/request-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { CollaborationRequest, User } from '@/types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MailWarning, CheckCheck, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAuthenticatedUser } from '@/lib/mockAuth';
-import { getCollaborationRequests } from '@/lib/mockData'; // Use new mock data functions
+import { getAuthenticatedUser } from '@/lib/mockAuth'; // For current user context for now
+
 
 export default function EntrepreneurDashboardPage() {
   const [requests, setRequests] = useState<CollaborationRequest[]>([]);
@@ -16,62 +16,118 @@ export default function EntrepreneurDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const user = getAuthenticatedUser();
-    setCurrentUser(user);
-    setIsLoading(true);
-
-    if (user && user.role === 'entrepreneur' && typeof window !== 'undefined') {
-      const myRequests = getCollaborationRequests(user.id);
-      setRequests(myRequests);
+  const fetchReceivedRequests = useCallback(async () => {
+    const token = localStorage.getItem('bizlinkToken');
+    if (!token) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Authentication token not found.' });
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
-  }, []);
-
-  const updateRequestStatusInLocalStorage = (requestId: string, status: CollaborationRequest['status']) => {
-    if (typeof window !== 'undefined') {
-      const storedRequestsStr = localStorage.getItem('collaborationRequests');
-      if (storedRequestsStr) {
-        let allRequests: CollaborationRequest[] = JSON.parse(storedRequestsStr);
-        let requestUpdated = false;
-        allRequests = allRequests.map(r => {
-          if (r.id === requestId) {
-            requestUpdated = true;
-            return { ...r, status: status };
-          }
-          return r;
-        });
-        
-        if (requestUpdated) {
-          localStorage.setItem('collaborationRequests', JSON.stringify(allRequests));
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/collaboration-requests/received', {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch requests');
       }
+      const data: CollaborationRequest[] = await response.json();
+      setRequests(data);
+    } catch (err) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Fetch Error', description: err instanceof Error ? err.message : 'Could not fetch requests.' });
+      setRequests([]); // Clear requests on error
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    const user = getAuthenticatedUser(); // Uses localStorage
+    setCurrentUser(user);
+    if (user && user.role === 'entrepreneur') {
+      fetchReceivedRequests();
+    } else {
+      setIsLoading(false); // Not an entrepreneur or no user
+    }
+  }, [fetchReceivedRequests]);
+
+
+  const handleUpdateRequestStatus = async (requestId: string, status: 'accepted' | 'rejected') => {
+    const token = localStorage.getItem('bizlinkToken');
+    if (!token) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Authentication token not found.' });
+      return;
+    }
+
+    // Optimistically update UI
+    const originalRequests = [...requests];
+    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: status } : r));
+
+    try {
+      const response = await fetch(`/api/collaboration-requests/${requestId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status }),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        // Revert optimistic update
+        setRequests(originalRequests);
+        throw new Error(responseData.message || `Failed to ${status === 'accepted' ? 'accept' : 'reject'} request`);
+      }
+      
+      // Update with confirmed data from backend (though often same as optimistic)
+      setRequests(prev => prev.map(r => r.id === requestId ? responseData : r));
+
+      toast({ 
+        title: `Request ${status === 'accepted' ? 'Accepted' : 'Rejected'}`, 
+        description: status === 'accepted' ? "You can now chat with the investor." : undefined
+      });
+
+    } catch (error) {
+      // Revert optimistic update if not already done
+      setRequests(originalRequests);
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error instanceof Error ? error.message : 'Could not update request status.',
+      });
     }
   };
 
+
   const handleAccept = (requestId: string) => {
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'accepted' } : r));
-    updateRequestStatusInLocalStorage(requestId, 'accepted');
-    toast({ title: "Request Accepted", description: "You can now chat with the investor." });
+    handleUpdateRequestStatus(requestId, 'accepted');
   };
 
   const handleReject = (requestId: string) => {
-    setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected' } : r));
-    updateRequestStatusInLocalStorage(requestId, 'rejected');
-    toast({ title: "Request Rejected", variant: "default" });
+    handleUpdateRequestStatus(requestId, 'rejected');
   };
 
   const filteredRequests = (status: CollaborationRequest['status']) => requests.filter(r => r.status === status);
+
+  if (!currentUser && !isLoading) {
+     // This means getAuthenticatedUser returned null and we are done loading.
+    return <p className="text-center py-10 text-muted-foreground">Please log in to view this page.</p>;
+  }
+  
+  if (currentUser && currentUser.role !== 'entrepreneur' && !isLoading) {
+    return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for entrepreneurs.</p>;
+  }
 
   if (isLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
-  if (!currentUser || currentUser.role !== 'entrepreneur') {
-     // This case should ideally be handled by the DashboardLayout's role protection,
-    // but kept here as a fallback.
-    return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for entrepreneurs.</p>;
-  }
 
   return (
     <div className="space-y-8">
@@ -120,3 +176,4 @@ export default function EntrepreneurDashboardPage() {
     </div>
   );
 }
+
