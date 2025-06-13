@@ -1,4 +1,3 @@
-
 import type { ObjectId as MongoObjectId } from 'mongodb';
 
 export type Role = 'investor' | 'entrepreneur';
@@ -70,20 +69,31 @@ export interface MongoCollaborationRequestDocument {
   message?: string;
 }
 
-
+// Client-facing Chat Message
 export interface ChatMessage {
-  id: string;
+  id: string; // MongoDB _id as string
   senderId: string;
   receiverId: string;
   message: string;
-  timestamp: string;
+  timestamp: string; // ISO Date string
   isRead?: boolean;
+  tempId?: string; // Optional temporary ID for optimistic UI updates
+}
+
+// Chat Message document as stored in MongoDB
+export interface MongoChatMessageDocument {
+  _id: MongoObjectId;
+  senderId: MongoObjectId;
+  receiverId: MongoObjectId;
+  message: string;
+  timestamp: Date; // Stored as BSON Date
+  isRead: boolean;
 }
 
 export interface Conversation {
-  id: string; // Could be a composite of user IDs or a unique ID
-  participantA: User;
-  participantB: User;
+  id: string; // Could be a composite of user IDs or a unique ID (typically the other user's ID)
+  participantA: User; // Current user (usually)
+  participantB: User; // The other user in the conversation
   lastMessage?: ChatMessage;
   unreadCount?: number;
 }
@@ -95,4 +105,3 @@ export interface PitchAnalysis {
   weaknesses: string;
   advice: string;
 }
-
