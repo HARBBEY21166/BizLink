@@ -35,7 +35,7 @@ function toClientUser(mongoUser: MongoUserDocument): User {
 const profileUpdateSchema = z.object({
   name: z.string().min(1, "Name cannot be empty").optional(),
   bio: z.string().max(1000, "Bio is too long").optional().or(z.literal('')),
-  avatarUrl: z.string().url("Invalid URL for avatar").optional().or(z.literal('')),
+  avatarUrl: z.string().max(255, "Avatar URL is too long").optional().or(z.literal('')), // Changed from .url()
   startupDescription: z.string().max(1000, "Startup description is too long").optional().or(z.literal('')),
   fundingNeed: z.string().max(200, "Funding need is too long").optional().or(z.literal('')),
   pitchDeckUrl: z.string().url("Invalid URL for pitch deck").optional().or(z.literal('')),
