@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,144 +11,131 @@ import { Textarea } from '@/components/ui/textarea';
 import type { User } from '@/types';
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProfileEditFormProps {
   user: User;
   onSave: (updatedUser: Partial<User>) => Promise<void>;
 }
 
-const commonSchema = {
+// Common schema parts, role is not editable via form
+const commonSchemaBase = {
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }).optional(),
   bio: z.string().max(500, { message: 'Bio cannot exceed 500 characters.' }).optional().or(z.literal('')),
-  avatarFile: z.instanceof(File).optional(),
+  avatarFile: z.instanceof(File).optional(), // For handling file input
 };
 
 const entrepreneurSchema = z.object({
-  ...commonSchema,
-  role: z.literal('entrepreneur').optional(),
+  ...commonSchemaBase,
   startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional().or(z.literal('')),
   fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional().or(z.literal('')),
   pitchDeckUrl: z.string().url({message: "Please enter a valid URL for your pitch deck."}).optional().or(z.literal('')),
 });
 
 const investorSchema = z.object({
-  ...commonSchema,
-  role: z.literal('investor').optional(),
-  investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
-  portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
+  ...commonSchemaBase,
+  investmentInterests: z.string().optional().or(z.literal('')).transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : []),
+  portfolioCompanies: z.string().optional().or(z.literal('')).transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : []),
 });
 
-const combinedSchema = z.object({
-  ...commonSchema,
-  role: z.union([z.literal('entrepreneur'), z.literal('investor')]).optional(),
-  startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional().or(z.literal('')),
-  fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional().or(z.literal('')),
-  pitchDeckUrl: z.string().url({message: "Please enter a valid URL for your pitch deck."}).optional().or(z.literal('')),
-  investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
-  portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
-});
+
 export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) {
+  const { toast } = useToast();
+  const currentSchema = user.role === 'entrepreneur' ? entrepreneurSchema : investorSchema;
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
-  const currentSchema = user.role === 'entrepreneur' ? entrepreneurSchema : investorSchema;
+  const [token, setToken] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof currentSchema>>({
- resolver: zodResolver(combinedSchema),
-  } as any); // Use 'as any' to bypass the type error for now
+    resolver: zodResolver(currentSchema),
+    defaultValues: {}, // Will be set by useEffect
+  });
 
   useEffect(() => {
-    form.reset({
+    // Populate form with user data when user prop changes
+    const defaultVals: Partial<User> & { investmentInterests?: string, portfolioCompanies?: string, avatarFile?: File } = {
       name: user.name || '',
       bio: user.bio || '',
-      ...(user.role === 'entrepreneur' ? {
-        startupDescription: user.startupDescription || '',
-        fundingNeed: user.fundingNeed || '',
-        pitchDeckUrl: user.pitchDeckUrl || '',
-      } : {}),
-      ...(user.role === 'investor' ? {
-        investmentInterests: user.investmentInterests?.join(', ') || '',
-        portfolioCompanies: user.portfolioCompanies?.join(', ') || '',
-      } : {}),
-    });
+      // avatarFile is not part of user data, so it's not set here from `user`
+    };
+    if (user.role === 'entrepreneur') {
+      defaultVals.startupDescription = user.startupDescription || '';
+      defaultVals.fundingNeed = user.fundingNeed || '';
+      defaultVals.pitchDeckUrl = user.pitchDeckUrl || '';
+    } else if (user.role === 'investor') {
+      // For string input, join arrays
+      defaultVals.investmentInterests = user.investmentInterests?.join(', ') || '';
+      defaultVals.portfolioCompanies = user.portfolioCompanies?.join(', ') || '';
+    }
+    form.reset(defaultVals as any); // Type assertion for defaultValues
   }, [user, form]);
 
-  const onSubmit = async (values: z.infer<typeof combinedSchema>) => {
-    setIsLoading(true);
-    try {
-        const formData = new FormData();
-
-        // Append other form data as needed (name, bio, etc.)
-        formData.append('name', values.name || '');
-        formData.append('bio', values.bio || '');
-        
-        // Append role-specific fields
-        if (user.role === 'entrepreneur') {
-          const entrepreneurValues = values as z.infer<typeof entrepreneurSchema>; // Type assertion
-          formData.append('startupDescription', entrepreneurValues.startupDescription || '');
-          formData.append('fundingNeed', entrepreneurValues.fundingNeed || '');
-          formData.append('pitchDeckUrl', entrepreneurValues.pitchDeckUrl || '');
-        } else {
-          const investorValues = values as z.infer<typeof investorSchema>; // Type assertion
-          formData.append( 
-            'investmentInterests', 
-            typeof investorValues.investmentInterests === 'string' 
-              ? investorValues.investmentInterests 
-              : investorValues.investmentInterests?.join(', ') || ''
-          );
-          formData.append(
-            'portfolioCompanies', 
-            typeof investorValues.portfolioCompanies === 'string' 
-              ? investorValues.portfolioCompanies 
-              : investorValues.portfolioCompanies?.join(', ') || ''
-          );
-
-        if (selectedFile) {
-            formData.append('avatar', selectedFile);
-        }
-
-        const token = localStorage.getItem('bizlinkToken');
-
-        if (!token) {
-            console.error('JWT not found in localStorage.');
-            setIsLoading(false);
-            return;
-        }
-
-        const response = await fetch('/api/users/avatar', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Avatar upload failed.');
-        }
-
-        const result = await response.json();
-        console.log('Avatar uploaded successfully:', result.avatarUrl);
-
-        // Update local user state if needed
-        await onSave({
-          ...values,
-          avatarUrl: result.avatarUrl
-        });
-
+  useEffect(() => {
+    const userToken = localStorage.getItem('bizlinkToken');
+    if (userToken) {
+      setToken(userToken);
     }
+  }, []);
+
+  const onSubmit = async (values: z.infer<typeof currentSchema>) => {
+    if (!token) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Authentication token not available.' });
+      return;
+    }
+    setIsLoading(true);
+    let newAvatarUrl: string | undefined = user.avatarUrl; // Keep existing avatar by default
+
+    try {
+      // Step 1: Upload avatar if a new one is selected
+      if (selectedFile) {
+        const avatarFormData = new FormData();
+        avatarFormData.append('avatar', selectedFile); // Key 'avatar' as expected by API
+
+        const avatarResponse = await fetch('/api/users/avatar', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: avatarFormData,
+        });
+
+        if (!avatarResponse.ok) {
+          const errorData = await avatarResponse.json().catch(() => ({ error: 'Failed to upload avatar.' }));
+          throw new Error(errorData.error || `Avatar upload failed: ${avatarResponse.statusText}`);
+        }
+        const avatarResult = await avatarResponse.json();
+        newAvatarUrl = avatarResult.avatarUrl;
+      }
+
+      // Step 2: Prepare profile data for the onSave prop (handleSaveProfile in parent)
+      // `values` already contains form fields like name, bio, and role-specific ones.
+      // Zod schema transformations (e.g., for interests, portfolio) have already been applied to `values`.
+      const dataToSave: Partial<User> = {
+        ...values, // Contains name, bio, role-specific fields (already correctly typed by Zod)
+        avatarUrl: newAvatarUrl, // Add the new or existing avatar URL
+      };
+      
+      // The `avatarFile` field from the form schema is not part of the User model.
+      // It was only used to capture the file input.
+      delete (dataToSave as any).avatarFile;
+
+
+      await onSave(dataToSave); // This calls handleSaveProfile in ProfilePage
+
+      setSelectedFile(null); // Clear selected file display after successful save
+      // Form will be reset by parent component (ProfilePage) when user prop updates
+
     } catch (error) {
-        console.error('Error uploading avatar:', error);
+      // Error is caught by ProfilePage's handleSaveProfile, which shows a toast.
+      // We re-throw it so the parent's catch block can handle it and update loading state.
+      console.error('Error in ProfileEditForm onSubmit:', error);
+      throw error; 
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        {/* ... rest of your form fields remain unchanged ... */}
         <FormField
           control={form.control}
           name="name"
@@ -162,19 +150,24 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
           )}
         />
         <FormField
-          // The name 'avatarUrl' is kept for form state consistency,
-          // but the input type is file and the handling is different. 
-          // We use a separate state for the file itself.
           control={form.control}
-          // We are not binding value directly for file inputs
-          name="avatarFile" // Use 'avatarFile' as the field name
-          render={({ field }) => (
-            <FormItem className="flex flex-col"> {/* Use flex-col for stacked label and input */}
+          name="avatarFile" 
+          render={({ field }) => ( // field.onChange will update react-hook-form's state for 'avatarFile'
+            <FormItem className="flex flex-col">
               <FormLabel>Avatar</FormLabel>
               <FormControl>
-                 {/* We are not binding value directly for file inputs */}
-                <Input type="file" accept="image/*" onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); field.onChange(e.target.files?.[0]); }} />
+                <Input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setSelectedFile(file); // For direct use in upload
+                    field.onChange(file); // Update RHF state for validation if needed
+                  }} 
+                />
               </FormControl>
+              {selectedFile && <FormDescription>New: {selectedFile.name}</FormDescription>}
+              {!selectedFile && user.avatarUrl && <FormDescription>Current: <a href={user.avatarUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">View Image</a></FormDescription>}
               <FormMessage />
             </FormItem>
           )}
@@ -247,6 +240,7 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
                 <FormItem>
                   <FormLabel>Investment Interests</FormLabel>
                   <FormControl>
+                    {/* Input expects string, Zod schema handles string to array */}
                     <Input placeholder="e.g., SaaS, Fintech, AI (comma-separated)" {...field} />
                   </FormControl>
                   <FormDescription>Separate interests with commas.</FormDescription>
@@ -261,6 +255,7 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
                 <FormItem>
                   <FormLabel>Portfolio Companies</FormLabel>
                   <FormControl>
+                     {/* Input expects string, Zod schema handles string to array */}
                     <Input placeholder="e.g., Startup A, Company B (comma-separated)" {...field} />
                   </FormControl>
                   <FormDescription>List companies you've invested in, separated by commas.</FormDescription>
@@ -270,7 +265,6 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
             />
           </>
         )}
-        {/* ... other form fields ... */}
         <Button type="submit" className="font-semibold" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save Changes
@@ -279,3 +273,5 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
     </Form>
   );
 }
+
+    
