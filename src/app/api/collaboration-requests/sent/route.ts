@@ -28,10 +28,15 @@ function toClientRequest(mongoRequest: MongoCollaborationRequestDocument): Colla
 }
 
 async function getSentRequestsHandler(req: AuthenticatedRequest) {
+  const SCRIPT_NAME = 'getSentRequestsHandler /api/collaboration-requests/sent';
+  console.time(SCRIPT_NAME);
+
   if (!req.user) {
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
   }
   if (req.user.role !== 'investor') {
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json({ message: 'Only investors can view sent requests' }, { status: 403 });
   }
 
@@ -41,21 +46,25 @@ async function getSentRequestsHandler(req: AuthenticatedRequest) {
     const db = client.db(dbName);
     const requestsCollection: Collection<MongoCollaborationRequestDocument> = db.collection('collaborationRequests');
 
+    console.log(`[${SCRIPT_NAME}] Fetching sent requests for investorId: ${req.user.userId}`);
     const sentRequestDocs = await requestsCollection
       .find({ investorId: new MObjectId(req.user.userId) })
       .sort({ requestedAt: -1 }) // Sort by most recent
       .toArray();
+    console.log(`[${SCRIPT_NAME}] Found ${sentRequestDocs.length} sent requests for investorId: ${req.user.userId}`);
 
     const clientRequests = sentRequestDocs.map(toClientRequest);
-
+    
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json(clientRequests, { status: 200 });
 
   } catch (error) {
-    console.error('Get sent collaboration requests error:', error);
+    console.error(`[${SCRIPT_NAME}] Get sent collaboration requests error:`, error);
     let message = 'An unexpected error occurred.';
     if (error instanceof Error) {
         message = error.message;
     }
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json({ message }, { status: 500 });
   }
 }
@@ -63,3 +72,4 @@ async function getSentRequestsHandler(req: AuthenticatedRequest) {
 export async function GET(req: AuthenticatedRequest) {
   return verifyAuth(req, getSentRequestsHandler);
 }
+

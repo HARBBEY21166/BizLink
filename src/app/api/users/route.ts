@@ -25,11 +25,14 @@ function toClientUser(mongoUser: MongoUserDocument): User {
 }
 
 export async function GET(req: NextRequest) {
+  const SCRIPT_NAME = 'GET /api/users';
+  console.time(SCRIPT_NAME);
   try {
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role') as User['role'] | null;
 
     if (!role || (role !== 'investor' && role !== 'entrepreneur')) {
+      console.timeEnd(SCRIPT_NAME);
       return NextResponse.json({ message: 'Valid role (investor or entrepreneur) is required as a query parameter' }, { status: 400 });
     }
 
@@ -38,18 +41,23 @@ export async function GET(req: NextRequest) {
     const db = client.db(dbName);
     const usersCollection: Collection<MongoUserDocument> = db.collection<MongoUserDocument>('users');
 
+    console.log(`[${SCRIPT_NAME}] Fetching users with role: ${role}`);
     const users = await usersCollection.find({ role: role }).toArray();
+    console.log(`[${SCRIPT_NAME}] Found ${users.length} users with role: ${role}`);
 
     const clientUsers = users.map(toClientUser);
 
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json(clientUsers, { status: 200 });
 
   } catch (error) {
-    console.error('Failed to fetch users:', error);
+    console.error(`[${SCRIPT_NAME}] Failed to fetch users:`, error);
     let message = 'An unexpected error occurred.';
     if (error instanceof Error) {
         message = error.message;
     }
+    console.timeEnd(SCRIPT_NAME);
     return NextResponse.json({ message }, { status: 500 });
   }
 }
+
