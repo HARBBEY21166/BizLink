@@ -1,9 +1,9 @@
 import 'dotenv/config'; // Make sure to install dotenv and configure it
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
-import clientPromise from '../frontend/src/lib/mongodb'; // Adjusted path
+import clientPromise from '../src/lib/mongodb'; // Adjusted path
 import { ObjectId } from 'mongodb';
-import type { MongoChatMessageDocument } from '../frontend/src/types'; // Adjusted path
+import type { MongoChatMessageDocument } from '../src/types'; // Adjusted path
 
 const PORT = parseInt(process.env.SOCKET_IO_PORT || '3001', 10);
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'bizlink_db';

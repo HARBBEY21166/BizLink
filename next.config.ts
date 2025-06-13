@@ -1,7 +1,10 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // This tells Next.js that your `app` or `pages` directory,
+  // and other source files like components and lib, are inside `frontend/src`.
+  srcDir: 'frontend/src',
   typescript: {
     ignoreBuildErrors: true,
   },
