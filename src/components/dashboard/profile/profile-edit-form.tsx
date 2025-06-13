@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +8,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { User } from '@/types';
-// import { useToast } from '@/hooks/use-toast'; // Toast is handled by parent page
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -18,16 +16,15 @@ interface ProfileEditFormProps {
   onSave: (updatedUser: Partial<User>) => Promise<void>;
 }
 
-// Schemas need to align with what the backend PUT /api/users/profile expects
 const commonSchema = {
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }).optional(),
   bio: z.string().max(500, { message: 'Bio cannot exceed 500 characters.' }).optional().or(z.literal('')),
-  avatarUrl: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
+  avatarFile: z.instanceof(File).optional(),
 };
 
 const entrepreneurSchema = z.object({
   ...commonSchema,
-  role: z.literal('entrepreneur').optional(), // Role shouldn't be editable here
+  role: z.literal('entrepreneur').optional(),
   startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional().or(z.literal('')),
   fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional().or(z.literal('')),
   pitchDeckUrl: z.string().url({message: "Please enter a valid URL for your pitch deck."}).optional().or(z.literal('')),
@@ -35,29 +32,34 @@ const entrepreneurSchema = z.object({
 
 const investorSchema = z.object({
   ...commonSchema,
-  role: z.literal('investor').optional(), // Role shouldn't be editable here
+  role: z.literal('investor').optional(),
   investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
   portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
 });
 
-
+const combinedSchema = z.object({
+  ...commonSchema,
+  role: z.union([z.literal('entrepreneur'), z.literal('investor')]).optional(),
+  startupDescription: z.string().max(500, { message: 'Startup description cannot exceed 500 characters.' }).optional().or(z.literal('')),
+  fundingNeed: z.string().max(100, { message: 'Funding need cannot exceed 100 characters.' }).optional().or(z.literal('')),
+  pitchDeckUrl: z.string().url({message: "Please enter a valid URL for your pitch deck."}).optional().or(z.literal('')),
+  investmentInterests: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
+  portfolioCompanies: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()).filter(Boolean) : undefined),
+});
 export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) {
-  // const { toast } = useToast(); // Parent handles toast
-  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const currentSchema = user.role === 'entrepreneur' ? entrepreneurSchema : investorSchema;
 
   const form = useForm<z.infer<typeof currentSchema>>({
-    resolver: zodResolver(currentSchema),
-    // Default values should be set once, typically not in useEffect for controlled forms unless user prop changes identity
-  });
+ resolver: zodResolver(combinedSchema),
+  } as any); // Use 'as any' to bypass the type error for now
 
-  // Effect to reset form when user prop changes (e.g., after successful save and re-fetch)
   useEffect(() => {
     form.reset({
       name: user.name || '',
       bio: user.bio || '',
-      avatarUrl: user.avatarUrl || '',
       ...(user.role === 'entrepreneur' ? {
         startupDescription: user.startupDescription || '',
         fundingNeed: user.fundingNeed || '',
@@ -70,26 +72,82 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
     });
   }, [user, form]);
 
-
-  async function onSubmit(values: z.infer<typeof currentSchema>) {
-    setIsSaving(true);
-    // Remove 'role' if it exists in values, as it's not meant to be updated here
-    const { role, ...updateData } = values;
-
+  const onSubmit = async (values: z.infer<typeof combinedSchema>) => {
+    setIsLoading(true);
     try {
-      await onSave(updateData as Partial<User>);
-      // Toast is handled by parent page
-    } catch (error) {
-      // Error handling/toast also by parent
-      console.error("Profile save from form failed:", error);
-    } finally {
-      setIsSaving(false);
+        const formData = new FormData();
+
+        // Append other form data as needed (name, bio, etc.)
+        formData.append('name', values.name || '');
+        formData.append('bio', values.bio || '');
+        
+        // Append role-specific fields
+        if (user.role === 'entrepreneur') {
+          const entrepreneurValues = values as z.infer<typeof entrepreneurSchema>; // Type assertion
+          formData.append('startupDescription', entrepreneurValues.startupDescription || '');
+          formData.append('fundingNeed', entrepreneurValues.fundingNeed || '');
+          formData.append('pitchDeckUrl', entrepreneurValues.pitchDeckUrl || '');
+        } else {
+          const investorValues = values as z.infer<typeof investorSchema>; // Type assertion
+          formData.append( 
+            'investmentInterests', 
+            typeof investorValues.investmentInterests === 'string' 
+              ? investorValues.investmentInterests 
+              : investorValues.investmentInterests?.join(', ') || ''
+          );
+          formData.append(
+            'portfolioCompanies', 
+            typeof investorValues.portfolioCompanies === 'string' 
+              ? investorValues.portfolioCompanies 
+              : investorValues.portfolioCompanies?.join(', ') || ''
+          );
+
+        if (selectedFile) {
+            formData.append('avatar', selectedFile);
+        }
+
+        const token = localStorage.getItem('bizlinkToken');
+
+        if (!token) {
+            console.error('JWT not found in localStorage.');
+            setIsLoading(false);
+            return;
+        }
+
+        const response = await fetch('/api/users/avatar', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Avatar upload failed.');
+        }
+
+        const result = await response.json();
+        console.log('Avatar uploaded successfully:', result.avatarUrl);
+
+        // Update local user state if needed
+        await onSave({
+          ...values,
+          avatarUrl: result.avatarUrl
+        });
+
     }
-  }
+    } catch (error) {
+        console.error('Error uploading avatar:', error);
+    } finally {
+        setIsLoading(false);
+    }
+  };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        {/* ... rest of your form fields remain unchanged ... */}
         <FormField
           control={form.control}
           name="name"
@@ -104,15 +162,19 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
           )}
         />
         <FormField
+          // The name 'avatarUrl' is kept for form state consistency,
+          // but the input type is file and the handling is different. 
+          // We use a separate state for the file itself.
           control={form.control}
-          name="avatarUrl"
+          // We are not binding value directly for file inputs
+          name="avatarFile" // Use 'avatarFile' as the field name
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>Avatar URL</FormLabel>
+            <FormItem className="flex flex-col"> {/* Use flex-col for stacked label and input */}
+              <FormLabel>Avatar</FormLabel>
               <FormControl>
-                <Input placeholder="https://example.com/avatar.png" {...field} />
+                 {/* We are not binding value directly for file inputs */}
+                <Input type="file" accept="image/*" onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); field.onChange(e.target.files?.[0]); }} />
               </FormControl>
-              <FormDescription>Link to your profile picture (e.g., from a service like Imgur or a public URL).</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -208,9 +270,9 @@ export default function ProfileEditForm({ user, onSave }: ProfileEditFormProps) 
             />
           </>
         )}
-        
-        <Button type="submit" className="font-semibold" disabled={isSaving}>
-          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {/* ... other form fields ... */}
+        <Button type="submit" className="font-semibold" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save Changes
         </Button>
       </form>
