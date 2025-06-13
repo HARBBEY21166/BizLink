@@ -6,47 +6,79 @@ import { Input } from '@/components/ui/input';
 import type { User } from '@/types';
 import { Search, Loader2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
-import { getAuthenticatedUser } from '@/lib/mockAuth'; // Still used for current user context
+import { getAuthenticatedUser } from '@/lib/mockAuth';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DiscoverInvestorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [investors, setInvestors] = useState<User[]>([]);
+  const [bookmarkedProfileIds, setBookmarkedProfileIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const fetchPageData = useCallback(async (token: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [investorsResponse, bookmarksResponse] = await Promise.all([
+        fetch('/api/users?role=investor', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/bookmarks/ids', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+
+      if (!investorsResponse.ok) {
+        const errorData = await investorsResponse.json();
+        throw new Error(errorData.message || `Failed to fetch investors: ${investorsResponse.statusText}`);
+      }
+      const investorsData: User[] = await investorsResponse.json();
+      setInvestors(investorsData);
+
+      if (!bookmarksResponse.ok) {
+        const errorData = await bookmarksResponse.json();
+        console.warn('Failed to fetch bookmarked IDs:', errorData.message || bookmarksResponse.statusText);
+        // Don't throw, allow page to load, bookmarks will just appear as not bookmarked
+        setBookmarkedProfileIds(new Set()); 
+      } else {
+        const bookmarkedIdsData: string[] = await bookmarksResponse.json();
+        setBookmarkedProfileIds(new Set(bookmarkedIdsData));
+      }
+
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Could not load page data."});
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    const user = getAuthenticatedUser(); // Get local user for role check
+    const user = getAuthenticatedUser();
     setCurrentUser(user);
-    
-    async function fetchInvestors() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch('/api/users?role=investor');
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || `Failed to fetch investors: ${response.statusText}`);
-        }
-        const data: User[] = await response.json();
-        setInvestors(data);
-      } catch (err) {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-      } finally {
-        setIsLoading(false);
-      }
-    }
+    const token = localStorage.getItem('bizlinkToken');
 
-    if (user && user.role === 'entrepreneur') {
-      fetchInvestors();
-    } else if (user) {
-      // User is not an entrepreneur, deny access or redirect
-      setIsLoading(false); 
+    if (user && user.role === 'entrepreneur' && token) {
+      fetchPageData(token);
+    } else if (user && user.role !== 'entrepreneur') {
+      setIsLoading(false);
     } else {
-        // No authenticated user
-        setIsLoading(false);
+      setIsLoading(false); // No user or no token
     }
+  }, [fetchPageData]);
+  
+  const handleBookmarkToggle = useCallback((profileId: string, isBookmarked: boolean) => {
+    setBookmarkedProfileIds(prevIds => {
+      const newIds = new Set(prevIds);
+      if (isBookmarked) {
+        newIds.add(profileId);
+      } else {
+        newIds.delete(profileId);
+      }
+      return newIds;
+    });
+    // Optionally, could refetch from `/api/bookmarks/ids` to ensure sync,
+    // but optimistic update is usually fine for this.
   }, []);
 
   const filteredInvestors = investors.filter(i =>
@@ -55,12 +87,16 @@ export default function DiscoverInvestorsPage() {
     (i.investmentInterests && i.investmentInterests.join(', ').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  if (!currentUser) { // If auth check is also loading or no user
+  if (!currentUser && !isLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
   
-  if (currentUser.role !== 'entrepreneur') {
+  if (currentUser && currentUser.role !== 'entrepreneur' && !isLoading) {
     return <p className="text-center py-10 text-muted-foreground">Access Denied. This page is for entrepreneurs.</p>;
+  }
+  
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   return (
@@ -78,13 +114,17 @@ export default function DiscoverInvestorsPage() {
         </div>
       </div>
 
-      {isLoading && <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
       {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
       
       {!isLoading && !error && filteredInvestors.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredInvestors.map((investor) => (
-            <InvestorCard key={investor.id} investor={investor} />
+            <InvestorCard 
+                key={investor.id} 
+                investor={investor}
+                isBookmarked={bookmarkedProfileIds.has(investor.id)}
+                onBookmarkToggle={handleBookmarkToggle}
+            />
           ))}
         </div>
       ) : null}

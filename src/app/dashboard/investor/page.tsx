@@ -14,19 +14,22 @@ export default function InvestorDashboardPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [entrepreneurs, setEntrepreneurs] = useState<User[]>([]);
   const [sentRequests, setSentRequests] = useState<CollaborationRequest[]>([]);
+  const [bookmarkedProfileIds, setBookmarkedProfileIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const fetchInvestorData = useCallback(async (token: string) => {
+  const fetchInvestorDashboardData = useCallback(async (token: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const [entrepreneursResponse, sentRequestsResponse] = await Promise.all([
+      const [entrepreneursResponse, sentRequestsResponse, bookmarksResponse] = await Promise.all([
         fetch('/api/users?role=entrepreneur', { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch('/api/collaboration-requests/sent', { headers: { 'Authorization': `Bearer ${token}` } })
+        fetch('/api/collaboration-requests/sent', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/bookmarks/ids', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
+      // Entrepreneurs
       if (!entrepreneursResponse.ok) {
         const errorData = await entrepreneursResponse.json();
         throw new Error(errorData.message || `Failed to fetch entrepreneurs: ${entrepreneursResponse.statusText}`);
@@ -34,12 +37,23 @@ export default function InvestorDashboardPage() {
       const entrepreneursData: User[] = await entrepreneursResponse.json();
       setEntrepreneurs(entrepreneursData);
 
+      // Sent Requests
       if (!sentRequestsResponse.ok) {
         const errorData = await sentRequestsResponse.json();
         throw new Error(errorData.message || `Failed to fetch sent requests: ${sentRequestsResponse.statusText}`);
       }
       const sentRequestsData: CollaborationRequest[] = await sentRequestsResponse.json();
       setSentRequests(sentRequestsData);
+
+      // Bookmarked IDs
+      if (!bookmarksResponse.ok) {
+        const errorData = await bookmarksResponse.json();
+        console.warn('Failed to fetch bookmarked IDs:', errorData.message || bookmarksResponse.statusText);
+        setBookmarkedProfileIds(new Set());
+      } else {
+        const bookmarkedIdsData: string[] = await bookmarksResponse.json();
+        setBookmarkedProfileIds(new Set(bookmarkedIdsData));
+      }
 
     } catch (err) {
       console.error(err);
@@ -56,21 +70,20 @@ export default function InvestorDashboardPage() {
     const token = localStorage.getItem('bizlinkToken');
 
     if (user && user.role === 'investor' && token) {
-      fetchInvestorData(token);
+      fetchInvestorDashboardData(token);
     } else if (user && user.role !== 'investor') {
-      setIsLoading(false); // Not an investor
+      setIsLoading(false);
     } else {
-      setIsLoading(false); // No user or no token
+      setIsLoading(false);
     }
-  }, [fetchInvestorData]);
+  }, [fetchInvestorDashboardData]);
 
-  const handleRequestSentOrUpdated = useCallback(() => {
+  const handleDataRefresh = useCallback(() => {
     const token = localStorage.getItem('bizlinkToken');
     if (currentUser && currentUser.role === 'investor' && token) {
-        fetchInvestorData(token); // Refetch both entrepreneurs and sent requests
+        fetchInvestorDashboardData(token); // Refetches entrepreneurs, sent requests, and bookmarks
     }
-  }, [currentUser, fetchInvestorData]);
-
+  }, [currentUser, fetchInvestorDashboardData]);
 
   const filteredEntrepreneurs = entrepreneurs.filter(e =>
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,7 +104,7 @@ export default function InvestorDashboardPage() {
     return <p className="text-center py-10 text-muted-foreground">Access Denied. This dashboard is for investors.</p>;
   }
   
-  if (isLoading && !error) { // Show loader only if actively loading and no error yet
+  if (isLoading && !error) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
@@ -119,7 +132,9 @@ export default function InvestorDashboardPage() {
               key={entrepreneur.id} 
               entrepreneur={entrepreneur}
               initialRequestStatus={getRequestStatusForEntrepreneur(entrepreneur.id)}
-              onRequestSent={handleRequestSentOrUpdated}
+              onRequestSent={handleDataRefresh} // Renamed prop for clarity
+              isBookmarked={bookmarkedProfileIds.has(entrepreneur.id)}
+              onBookmarkToggle={handleDataRefresh} // Re-fetch all data on bookmark toggle
             />
           ))}
         </div>

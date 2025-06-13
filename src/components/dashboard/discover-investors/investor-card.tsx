@@ -8,12 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import type { User } from "@/types";
 import { Briefcase, MessageSquare, Eye, TrendingUp, Archive } from "lucide-react";
 import Link from "next/link";
+import BookmarkButton from "@/components/dashboard/common/bookmark-button"; // Added import
 
 interface InvestorCardProps {
   investor: User;
+  isBookmarked: boolean; // Added prop
+  onBookmarkToggle: (profileId: string, isBookmarked: boolean) => void; // Added prop
 }
 
-export default function InvestorCard({ investor }: InvestorCardProps) {
+export default function InvestorCard({ investor, isBookmarked, onBookmarkToggle }: InvestorCardProps) {
   const getInitials = (name: string = "") => {
     return name
       .split(' ')
@@ -61,6 +64,12 @@ export default function InvestorCard({ investor }: InvestorCardProps) {
         )}
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 mt-auto pt-4 border-t">
+        <BookmarkButton
+          profileId={investor.id}
+          initialIsBookmarked={isBookmarked}
+          onBookmarkToggle={onBookmarkToggle}
+          className="w-full sm:w-auto"
+        />
         <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
           <Link href={`/dashboard/profile/user/${investor.id}`}>
             <Eye className="mr-2 h-4 w-4" /> View Profile
