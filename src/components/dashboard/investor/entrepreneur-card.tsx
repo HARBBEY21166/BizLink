@@ -5,31 +5,34 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { User, CollaborationRequest } from "@/types";
-import { Briefcase, MessageSquare, UserPlus, CheckCircle, Loader2, Eye, XCircle } from "lucide-react";
+import { Briefcase, MessageSquare, UserPlus, CheckCircle, Loader2, Eye, XCircle, Send } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { getAuthenticatedUser } from '@/lib/mockAuth'; // For current user context for now
+import { getAuthenticatedUser } from '@/lib/mockAuth'; 
 import { useToast } from "@/hooks/use-toast";
 
 interface EntrepreneurCardProps {
   entrepreneur: User;
-  // We will need to fetch existing requests or pass them down if this card needs to know status
-  // For now, it will assume no prior request unless it successfully makes one.
+  initialRequestStatus: CollaborationRequest['status'] | 'not_sent';
+  onRequestSent: () => void; // Callback to notify parent to refresh data
 }
 
-export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps) {
+export default function EntrepreneurCard({ entrepreneur, initialRequestStatus, onRequestSent }: EntrepreneurCardProps) {
   const { toast } = useToast();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isRequesting, setIsRequesting] = useState(false);
-  const [requestStatus, setRequestStatus] = useState<CollaborationRequest['status'] | 'not_sent' | 'error_sending'>('not_sent');
-  const [sentRequestId, setSentRequestId] = useState<string | null>(null);
+  // Local status primarily for optimistic UI updates during send. Prop is source of truth.
+  const [currentDisplayStatus, setCurrentDisplayStatus] = useState(initialRequestStatus);
 
   useEffect(() => {
-    const user = getAuthenticatedUser(); // This uses localStorage
+    const user = getAuthenticatedUser(); 
     setCurrentUser(user);
-    // In a real app with full backend state, you might fetch existing request status here
-    // For now, we'll simplify and only track requests made in this session or if the page re-fetches data.
-  }, [entrepreneur.id]);
+  }, []);
+
+  useEffect(() => {
+    // Sync with prop if it changes (e.g., parent re-fetches)
+    setCurrentDisplayStatus(initialRequestStatus);
+  }, [initialRequestStatus]);
 
   const getInitials = (name: string = "") => {
     return name
@@ -50,7 +53,6 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
     }
 
     setIsRequesting(true);
-    setRequestStatus('not_sent'); // Reset status for new attempt
 
     const token = localStorage.getItem('bizlinkToken');
     if (!token) {
@@ -66,26 +68,26 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ entrepreneurId: entrepreneur.id }), // Add message field if desired
+        body: JSON.stringify({ entrepreneurId: entrepreneur.id }),
       });
 
       const responseData = await response.json();
 
       if (!response.ok) {
-        setRequestStatus('error_sending');
+        setCurrentDisplayStatus('not_sent'); // Revert optimistic if failed
         throw new Error(responseData.message || `Failed to send request: ${response.statusText}`);
       }
       
       const createdRequest: CollaborationRequest = responseData;
-      setSentRequestId(createdRequest.id);
-      setRequestStatus(createdRequest.status); // Should be 'pending'
+      setCurrentDisplayStatus(createdRequest.status); // Optimistic update to 'pending'
 
       toast({
         title: "Request Sent!",
         description: `Your collaboration request to ${entrepreneur.name} has been sent.`,
       });
+      onRequestSent(); // Notify parent to refresh list of sent requests
     } catch (error) {
-      setRequestStatus('error_sending');
+      setCurrentDisplayStatus('not_sent'); // Revert on error
       toast({
         title: "Error Sending Request",
         description: error instanceof Error ? error.message : "Something went wrong. Please try again.",
@@ -98,15 +100,13 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
   
   const getRequestButtonContent = () => {
     if (isRequesting) return <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending...</>;
-    switch (requestStatus) {
+    switch (currentDisplayStatus) {
         case 'pending':
-            return <><CheckCircle className="mr-2 h-4 w-4" /> Request Sent</>;
+            return <><Send className="mr-2 h-4 w-4" /> Request Sent</>; // Changed icon
         case 'accepted':
             return <><CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Accepted</>;
         case 'rejected':
             return <><XCircle className="mr-2 h-4 w-4 text-red-500" /> Rejected</>;
-        case 'error_sending':
-             return <><UserPlus className="mr-2 h-4 w-4" /> Request Collaboration</>; // Allow retry
         case 'not_sent':
         default:
             return <><UserPlus className="mr-2 h-4 w-4" /> Request Collaboration</>;
@@ -114,13 +114,12 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
   };
 
   const isButtonDisabled = () => {
-    return isRequesting || requestStatus === 'pending' || requestStatus === 'accepted';
-    // Allow re-sending if rejected or if there was an error
+    return isRequesting || currentDisplayStatus === 'pending' || currentDisplayStatus === 'accepted';
+    // Allow re-sending if rejected or if not_sent (e.g. initial state or previous error)
   }
 
-
   return (
-    <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col">
       <CardHeader className="flex flex-row items-start gap-4 space-y-0">
         <Avatar className="h-16 w-16 border-2 border-primary">
           <AvatarImage src={entrepreneur.avatarUrl || `https://placehold.co/100x100.png?text=${getInitials(entrepreneur.name)}`} alt={entrepreneur.name} data-ai-hint="person business" />
@@ -135,18 +134,18 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
            <p className="text-xs text-muted-foreground mt-1">Funding Need: {entrepreneur.fundingNeed || "Not specified"}</p>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow">
         <p className="text-sm text-foreground line-clamp-3">
           {entrepreneur.bio || "A brief bio about the entrepreneur and their venture will appear here. Seeking opportunities for growth and collaboration."}
         </p>
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2">
+      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 mt-auto pt-4 border-t">
         <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
           <Link href={`/dashboard/profile/user/${entrepreneur.id}`}>
             <Eye className="mr-2 h-4 w-4" /> View Profile
           </Link>
         </Button>
-        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto" disabled={requestStatus !== 'accepted'}>
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto" disabled={currentDisplayStatus !== 'accepted'}>
           <Link href={`/dashboard/chat/${entrepreneur.id}`}>
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>
@@ -156,8 +155,9 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
           onClick={handleRequestCollaboration} 
           disabled={isButtonDisabled()}
           className={`w-full sm:w-auto ${
-            requestStatus === 'accepted' ? 'bg-green-600 hover:bg-green-700' : 
-            requestStatus === 'rejected' ? 'bg-red-600 hover:bg-red-700' : 
+            currentDisplayStatus === 'accepted' ? 'bg-green-600 hover:bg-green-700' : 
+            currentDisplayStatus === 'rejected' ? 'bg-red-600 hover:bg-red-700' : 
+            currentDisplayStatus === 'pending' ? 'bg-blue-500 hover:bg-blue-600' : // Using blue for pending
             'bg-primary hover:bg-primary/90'
           } text-primary-foreground`}
         >
@@ -167,4 +167,3 @@ export default function EntrepreneurCard({ entrepreneur }: EntrepreneurCardProps
     </Card>
   );
 }
-
