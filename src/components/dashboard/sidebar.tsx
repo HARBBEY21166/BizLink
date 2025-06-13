@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, UserCircle, Briefcase, MessageSquare, Brain, LogOut, Settings, SearchCode } from 'lucide-react';
+import { LayoutDashboard, Users, UserCircle, Briefcase, MessageSquare, Brain, LogOut, Settings, SearchCode, Bookmark } from 'lucide-react'; // Added Bookmark
 import type { Role } from '@/types';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,6 +26,8 @@ const mockLogout = (router: ReturnType<typeof useRouter>) => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('bizlinkUser');
     localStorage.removeItem('bizlinkToken');
+     // Dispatch custom event to notify other components (like UserNav)
+    window.dispatchEvent(new CustomEvent('authChange'));
   }
   router.push('/login');
 };
@@ -42,6 +44,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Dashboard item is added dynamically first
   { href: '/dashboard/profile', label: 'My Profile', icon: UserCircle },
+  { href: '/dashboard/bookmarks', label: 'Bookmarks', icon: Bookmark }, // Added Bookmarks
   { href: '/dashboard/chat', label: 'Messages', icon: MessageSquare },
   { href: '/dashboard/pitch-analyzer', label: 'Pitch Analyzer', icon: Brain, roles: ['entrepreneur'] },
   { href: '/dashboard/discover-investors', label: 'Discover Investors', icon: SearchCode, roles: ['entrepreneur'] },
@@ -54,7 +57,16 @@ export default function Sidebar() {
   const router = useRouter();
 
   useEffect(() => {
-    setUserRole(getMockUserRole());
+    const role = getMockUserRole();
+    setUserRole(role);
+
+    const handleAuthChange = () => {
+        setUserRole(getMockUserRole());
+    };
+    window.addEventListener('authChange', handleAuthChange);
+    return () => {
+        window.removeEventListener('authChange', handleAuthChange);
+    };
   }, []);
 
   // Determine the correct dashboard link based on role for the main "Dashboard" item
@@ -63,12 +75,12 @@ export default function Sidebar() {
   // Create a dynamic "Dashboard" nav item
   const dynamicDashboardItem: NavItem = {
     href: dashboardLink,
-    label: userRole === 'investor' ? 'Investor Dashboard' : 'My Requests', // Changed for entrepreneur
-    icon: LayoutDashboard,
+    label: userRole === 'investor' ? 'Investor Dashboard' : 'My Requests', 
+    icon: userRole === 'investor' ? Users : Briefcase, // Changed icon for entrepreneur to Briefcase
   };
 
   // Construct final navigation list: dynamic dashboard item first, then filtered common items
-  const displayNavItems = [
+  const displayNavItems = userRole ? [ // Only build nav if userRole is known
     dynamicDashboardItem,
     ...navItems.filter(item => {
       // Always show items without specific roles defined
@@ -76,7 +88,7 @@ export default function Sidebar() {
       // If roles are defined, check if current user's role is included
       return userRole ? item.roles.includes(userRole) : false;
     })
-  ];
+  ] : [];
 
 
   return (
@@ -85,10 +97,10 @@ export default function Sidebar() {
         {displayNavItems.map((item) => (
           <Button
             key={item.label}
-            variant={pathname === item.href || (item.href === '/dashboard/chat' && pathname.startsWith('/dashboard/chat/')) ? 'default' : 'ghost'}
+            variant={pathname.startsWith(item.href) ? 'default' : 'ghost'} // Use startsWith for active state on nested routes like /chat/:id
             className={cn(
               'w-full justify-start',
-              (pathname === item.href || (item.href === '/dashboard/chat' && pathname.startsWith('/dashboard/chat/'))) ? 'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              (pathname.startsWith(item.href)) ? 'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
             )}
             asChild
           >
@@ -99,18 +111,20 @@ export default function Sidebar() {
           </Button>
         ))}
       </nav>
-      <div className="mt-auto">
-        <Button
-            variant={'ghost'}
-            className={cn(
-              'w-full justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-            )}
-            onClick={() => mockLogout(router)}
-          >
-            <LogOut className="mr-3 h-5 w-5" />
-            Logout
-          </Button>
-      </div>
+      {userRole && ( // Only show logout if user is determined
+        <div className="mt-auto">
+          <Button
+              variant={'ghost'}
+              className={cn(
+                'w-full justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              )}
+              onClick={() => mockLogout(router)}
+            >
+              <LogOut className="mr-3 h-5 w-5" />
+              Logout
+            </Button>
+        </div>
+      )}
     </aside>
   );
 }
