@@ -12,9 +12,9 @@ import { ArrowLeft, Loader2, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { io, type Socket } from 'socket.io-client';
 import { useToast } from '@/hooks/use-toast';
 
+const POLLING_INTERVAL = 5000; // 5 seconds
 
 export default function ChatPage() {
   const params = useParams();
@@ -27,19 +27,18 @@ export default function ChatPage() {
   
   const [isLoadingPartner, setIsLoadingPartner] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
   const [partnerError, setPartnerError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [socketError, setSocketError] = useState<string | null>(null);
-
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingMessagesRef = useRef(false); // To prevent concurrent fetches
 
   // Initialize current user
   useEffect(() => {
     const user = getAuthenticatedUser();
-    console.log('[ChatPage] Current Authenticated User:', user);
     setCurrentUser(user);
     if (!user) {
       setPartnerError("Current user not authenticated.");
@@ -51,12 +50,9 @@ export default function ChatPage() {
   // Fetch chat partner details
   useEffect(() => {
     if (!currentUser || !chatId) {
-      if (!chatId && currentUser) console.warn("[ChatPage] Chat partner ID missing.");
-      if (!currentUser) console.warn("[ChatPage] Current user not loaded for partner fetch.");
       setIsLoadingPartner(false);
       return;
     }
-
     if (currentUser.id === chatId) {
       setPartnerError("Cannot initiate a chat with yourself.");
       setIsLoadingPartner(false);
@@ -66,7 +62,6 @@ export default function ChatPage() {
     
     setIsLoadingPartner(true);
     setPartnerError(null);
-    console.log(`[ChatPage] Fetching chat partner with ID: ${chatId}`);
     fetch(`/api/users/${chatId}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -75,146 +70,82 @@ export default function ChatPage() {
         }
         return res.json();
       })
-      .then((data: User) => {
-        console.log('[ChatPage] Chat Partner Fetched:', data);
-        setChatPartner(data);
-      })
+      .then((data: User) => setChatPartner(data))
       .catch((err) => {
-        console.error("[ChatPage] Error fetching chat partner:", err);
         setPartnerError(err.message || "Could not load chat partner details.");
         setChatPartner(null);
       })
       .finally(() => setIsLoadingPartner(false));
   }, [chatId, currentUser]);
 
-  // Fetch historical messages
-  useEffect(() => {
-    if (!currentUser || !chatPartner) {
-        if (!currentUser) console.warn("[ChatPage] Current user not available for fetching messages.");
-        if (!chatPartner) console.warn("[ChatPage] Chat partner not available for fetching messages.");
-        setIsLoadingMessages(false);
-        return;
-    }
-    const token = localStorage.getItem('bizlinkToken');
-    if (!token) {
-        setMessagesError("Authentication token not found for fetching messages.");
-        setIsLoadingMessages(false);
-        return;
-    }
-
-    setIsLoadingMessages(true);
-    setMessagesError(null);
-    console.log(`[ChatPage] Fetching messages for partner: ${chatPartner.id}`);
-    fetch(`/api/messages/${chatPartner.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({ message: `Failed to load messages (Status: ${res.status})` }));
-          throw new Error(errorData.message);
-        }
-        return res.json();
-      })
-      .then((data: ChatMessage[]) => {
-        console.log('[ChatPage] Historical Messages Fetched:', data);
-        setMessages(data);
-      })
-      .catch((err) => {
-        console.error("[ChatPage] Error fetching messages:", err);
-        setMessagesError(err.message || "Could not load messages.");
-        setMessages([]);
-      })
-      .finally(() => setIsLoadingMessages(false));
-  }, [currentUser, chatPartner]);
-
-
-  // Socket.IO setup
-  useEffect(() => {
-    if (!currentUser) {
-      console.log('[ChatPage SocketSetup] No current user, skipping socket setup.');
+  // Function to fetch messages
+  const fetchMessages = useCallback(async (isInitialFetch = false) => {
+    if (!currentUser || !chatPartner || isFetchingMessagesRef.current) {
+      if (isInitialFetch) setIsLoadingMessages(false);
       return;
     }
-
-    const socketServerUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL;
-    console.log('[ChatPage SocketSetup] Attempting to connect to Socket.IO server at:', socketServerUrl);
-
-    if (!socketServerUrl) {
-        console.error("[ChatPage SocketSetup] NEXT_PUBLIC_SOCKET_SERVER_URL is not set!");
-        setSocketError("Socket server URL is not configured in environment variables.");
-        return; // Do not attempt to connect if URL is missing
+    
+    isFetchingMessagesRef.current = true;
+    if (isInitialFetch) {
+        setIsLoadingMessages(true);
+        setMessagesError(null);
     }
 
-    const newSocket = io(socketServerUrl);
-    setSocket(newSocket);
-    setSocketError(null);
-
-    newSocket.on('connect', () => {
-      console.log('[ChatPage Socket.IO] Connected to server:', newSocket.id);
-      setSocketConnected(true);
-      setSocketError(null);
-      if (currentUser?.id) {
-        newSocket.emit('storeUserId', currentUser.id);
-        console.log('[ChatPage Socket.IO] Emitted storeUserId:', currentUser.id);
-      }
-    });
-
-    newSocket.on('connect_error', (err) => {
-      console.error('[ChatPage Socket.IO] Connection error:', err);
-      setSocketError(`Connection failed: ${err.message}. Ensure the socket server is running and accessible.`);
-      setSocketConnected(false);
-      toast({ variant: 'destructive', title: 'Chat Error', description: 'Could not connect to chat server.'});
-    });
-
-    newSocket.on('disconnect', (reason) => {
-      console.log('[ChatPage Socket.IO] Disconnected from server:', reason);
-      setSocketConnected(false);
-      if (reason !== 'io client disconnect') { 
-        setSocketError('Disconnected from chat server. Attempting to reconnect...');
-      }
-    });
-
-    newSocket.on('receiveMessage', (newMessage: ChatMessage) => {
-      console.log('[ChatPage Socket.IO] Received message:', newMessage);
-      setMessages((prevMessages) => {
-        if (newMessage.tempId) {
-          const existingMsgIndex = prevMessages.findIndex(msg => msg.tempId === newMessage.tempId);
-          if (existingMsgIndex > -1) {
-            const updatedMessages = [...prevMessages];
-            updatedMessages[existingMsgIndex] = { ...newMessage, tempId: undefined };
-            return updatedMessages;
-          }
+    const token = localStorage.getItem('bizlinkToken');
+    if (!token) {
+        if (isInitialFetch) {
+            setMessagesError("Authentication token not found for fetching messages.");
+            setIsLoadingMessages(false);
         }
-        if (!prevMessages.some(msg => msg.id === newMessage.id)) {
-            return [...prevMessages, newMessage];
-        }
-        return prevMessages;
+        isFetchingMessagesRef.current = false;
+        return;
+    }
+
+    try {
+      const response = await fetch(`/api/messages/${chatPartner.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-    });
-
-    newSocket.on('messageError', ({ tempId, error }: {tempId?: string, error: string}) => {
-        console.error(`[ChatPage Socket.IO] Message error (tempId: ${tempId}):`, error);
-        toast({variant: 'destructive', title: 'Message Failed', description: error});
-        if (tempId) {
-            setMessages(prev => prev.map(m => m.tempId === tempId ? {...m, message: `${m.message} (Failed to send)`} : m));
-        }
-    });
-
-    return () => {
-      console.log('[ChatPage Socket.IO] Disconnecting socket.');
-      newSocket.disconnect();
-      setSocket(null);
-      setSocketConnected(false);
-    };
-  }, [currentUser, toast]); // Only currentUser and toast are direct dependencies for setting up the socket.
-
-  // Join chat room once socket is connected and chatPartner is identified
-  useEffect(() => {
-    if (socket && socketConnected && currentUser && chatPartner) {
-      console.log(`[ChatPage Socket.IO] Emitting joinChat for partner: ${chatPartner.id}`);
-      socket.emit('joinChat', { chatPartnerId: chatPartner.id });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `Failed to load messages (Status: ${response.status})` }));
+        throw new Error(errorData.message);
+      }
+      const data: ChatMessage[] = await response.json();
+      setMessages(data);
+    } catch (err) {
+      if (isInitialFetch) {
+        setMessagesError(err instanceof Error ? err.message : "Could not load messages.");
+      }
+      // Don't show toast for polling errors unless it's critical
+      console.error("[ChatPage] Error fetching messages:", err);
+    } finally {
+      if (isInitialFetch) {
+        setIsLoadingMessages(false);
+      }
+      isFetchingMessagesRef.current = false;
     }
-  }, [socket, socketConnected, currentUser, chatPartner]);
+  }, [currentUser, chatPartner]);
 
+  // Initial fetch and setup polling
+  useEffect(() => {
+    if (currentUser && chatPartner) {
+      fetchMessages(true); // Initial fetch
+
+      // Clear any existing interval
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+      // Setup polling
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessages(false);
+      }, POLLING_INTERVAL);
+    }
+    // Cleanup polling on component unmount or when dependencies change
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, [currentUser, chatPartner, fetchMessages]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -223,16 +154,20 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-  const handleSendMessage = useCallback((messageText: string) => {
-    if (!socket || !socketConnected) {
-        toast({variant: 'destructive', title: 'Chat Error', description: 'Not connected to chat server.'});
-        return;
-    }
+  const handleSendMessage = useCallback(async (messageText: string) => {
     if (!currentUser || !chatPartner) {
       toast({variant: 'destructive', title: 'Chat Error', description: 'User or chat partner not identified.'});
       return;
     }
+    const token = localStorage.getItem('bizlinkToken');
+    if (!token) {
+      toast({variant: 'destructive', title: 'Chat Error', description: 'Authentication token not found.'});
+      return;
+    }
 
+    setIsSendingMessage(true);
+
+    // Optimistic UI update
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: tempId, 
@@ -243,16 +178,40 @@ export default function ChatPage() {
       timestamp: new Date().toISOString(),
       isRead: false, 
     };
-
     setMessages(prevMessages => [...prevMessages, optimisticMessage]);
-    console.log('[ChatPage Socket.IO] Emitting sendMessage:', optimisticMessage);
-    socket.emit('sendMessage', { 
-        senderId: currentUser.id, 
-        receiverId: chatPartner.id, 
-        message: messageText,
-        tempId: tempId 
-    });
-  }, [socket, socketConnected, currentUser, chatPartner, toast]);
+
+    try {
+      const response = await fetch(`/api/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receiverId: chatPartner.id,
+          message: messageText,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to send message");
+      }
+      // const savedMessage: ChatMessage = await response.json();
+      // Message will be updated by the next poll. Or we can manually update it here.
+      // For simplicity, let polling handle it.
+      // Or, remove optimistic and refetch immediately:
+      setMessages(prev => prev.filter(m => m.id !== tempId)); // Remove optimistic
+      await fetchMessages(false); // Refetch messages immediately
+
+    } catch (error) {
+      setMessages(prev => prev.filter(m => m.id !== tempId)); // Remove optimistic on error
+      toast({variant: 'destructive', title: 'Message Failed', description: error instanceof Error ? error.message : "Could not send message."});
+      // Optionally, re-add optimistic message with error state if desired
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [currentUser, chatPartner, toast, fetchMessages]);
   
   const getInitials = (name: string = "") => {
     return name.split(' ').map((n) => n[0]).join('').toUpperCase();
@@ -260,7 +219,7 @@ export default function ChatPage() {
 
   const overallLoading = isLoadingPartner || (isLoadingMessages && !messagesError);
 
-  if (!currentUser && !isLoadingPartner && !isLoadingMessages) { // Added !isLoadingMessages to wait for partner check
+  if (!currentUser && !isLoadingPartner && !isLoadingMessages) { 
      return <div className="flex items-center justify-center h-full"><p className="text-center py-10 text-muted-foreground">User not authenticated. Please log in.</p></div>;
   }
   
@@ -272,7 +231,7 @@ export default function ChatPage() {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading chat...</span></div>;
   }
   
-  if (partnerError || !chatPartner) { // If partnerError is set or chatPartner is null after loading
+  if (partnerError || !chatPartner) { 
     return <p className="text-center py-10 text-destructive">Error: {partnerError || "Could not load chat partner details. Ensure they exist and you have permission."}</p>;
   }
 
@@ -291,19 +250,10 @@ export default function ChatPage() {
         <div className="ml-3">
           <h2 className="font-semibold font-headline text-lg">{chatPartner.name}</h2>
           <div className="flex items-center gap-1.5">
-             {socketConnected ? (
-                <>
-                    <div className={`h-2.5 w-2.5 rounded-full ${chatPartner.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                    <p className="text-xs text-muted-foreground capitalize">
-                    {chatPartner.isOnline ? 'Online' : 'Offline'} - {chatPartner.role}
-                    </p>
-                </>
-             ) : (
-                <>
-                    <WifiOff className="h-3 w-3 text-destructive" />
-                    <p className="text-xs text-destructive">Chat Disconnected</p>
-                </>
-             )}
+            <div className={`h-2.5 w-2.5 rounded-full ${chatPartner.isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <p className="text-xs text-muted-foreground capitalize">
+              {chatPartner.isOnline ? 'Online' : 'Offline'} - {chatPartner.role}
+            </p>
           </div>
         </div>
       </div>
@@ -318,9 +268,7 @@ export default function ChatPage() {
         ))}
       </ScrollArea>
       
-      {socketError && <p className="text-xs text-destructive text-center p-2 bg-destructive/10">{socketError}</p>}
-      <ChatInput onSendMessage={handleSendMessage} isLoading={!socketConnected || isLoadingPartner || isLoadingMessages} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={isSendingMessage || isLoadingPartner || isLoadingMessages} />
     </div>
   );
 }
-
