@@ -1,3 +1,4 @@
+
 import 'dotenv/config'; // Make sure to install dotenv and configure it
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -11,7 +12,27 @@ const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'bizlink_db';
 const httpServer = createServer();
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: process.env.NEXT_PUBLIC_CLIENT_URL || "http://localhost:9002", // Your Next.js app URL
+    origin: (origin, callback) => {
+      // Log the incoming origin for debugging purposes
+      console.log(`[Socket.IO CORS] Request from origin: ${origin}`);
+      const clientURL = process.env.NEXT_PUBLIC_CLIENT_URL;
+
+      if (!origin) { // Allow requests with no origin (like mobile apps or curl requests)
+        return callback(null, true);
+      }
+      
+      const allowedOrigins = [clientURL, "http://localhost:9002", "http://127.0.0.1:9002"];
+      // Add more specific origins if NEXT_PUBLIC_CLIENT_URL is dynamic or has variations
+      // e.g. if clientURL could be http://localhost:9002 or http://local.bizlink.app:9002
+      // For simplicity, we are checking against a fixed set here plus the env var.
+
+      if (allowedOrigins.some(allowed => origin.startsWith(allowed!))) {
+        return callback(null, true);
+      }
+      
+      console.error(`[Socket.IO CORS] Origin ${origin} not allowed. Allowed: ${allowedOrigins.join(', ')}`);
+      return callback(new Error('Not allowed by CORS'));
+    },
     methods: ["GET", "POST"]
   }
 });
@@ -26,12 +47,12 @@ const getRoomName = (userId1: string, userId2: string): string => {
 };
 
 io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
+  console.log(`[Socket.IO] Socket connected: ${socket.id}`);
 
   socket.on('storeUserId', (userId: string) => {
     if (userId) {
       userSocketMap[userId] = socket.id;
-      console.log(`User ${userId} registered with socket ${socket.id}`);
+      console.log(`[Socket.IO] User ${userId} registered with socket ${socket.id}`);
     }
   });
 
@@ -40,11 +61,11 @@ io.on('connection', (socket) => {
     if (currentUserId && chatPartnerId) {
       const roomName = getRoomName(currentUserId, chatPartnerId);
       socket.join(roomName);
-      console.log(`Socket ${socket.id} (User ${currentUserId}) joined room: ${roomName}`);
+      console.log(`[Socket.IO] Socket ${socket.id} (User ${currentUserId}) joined room: ${roomName}`);
       socket.data.currentRoom = roomName; 
       socket.data.currentUserId = currentUserId; 
     } else {
-        console.warn(`Could not join chat for socket ${socket.id}: userId or chatPartnerId missing`);
+        console.warn(`[Socket.IO] Could not join chat for socket ${socket.id}: userId or chatPartnerId missing`);
     }
   });
 
@@ -54,7 +75,7 @@ io.on('connection', (socket) => {
     const roomName = getRoomName(senderId, receiverId);
 
     if (!senderId || !receiverId || !message) {
-      console.error('sendMessage: Missing data', data);
+      console.error('[Socket.IO sendMessage] Missing data', data);
       socket.emit('messageError', { tempId, error: 'Missing senderId, receiverId, or message' });
       return;
     }
@@ -85,37 +106,37 @@ io.on('connection', (socket) => {
           tempId, 
         };
         io.to(roomName).emit('receiveMessage', savedMessageForEmit);
-        console.log(`Message from ${senderId} to ${receiverId} in room ${roomName}: ${message}`);
+        console.log(`[Socket.IO] Message from ${senderId} to ${receiverId} in room ${roomName}: ${message}`);
       } else {
         throw new Error("Failed to insert message into DB.");
       }
 
     } catch (error) {
-      console.error('Error saving or sending message:', error);
+      console.error('[Socket.IO] Error saving or sending message:', error);
       socket.emit('messageError', { tempId, error: 'Failed to save or send message' });
     }
   });
 
-  socket.on('disconnect', () => {
-    console.log(`Socket disconnected: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket.IO] Socket disconnected: ${socket.id}, reason: ${reason}`);
     const userId = Object.keys(userSocketMap).find(key => userSocketMap[key] === socket.id);
     if (userId) {
       delete userSocketMap[userId];
-      console.log(`User ${userId} unregistered from socket map.`);
+      console.log(`[Socket.IO] User ${userId} unregistered from socket map.`);
     }
   });
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`Socket.IO server running on port ${PORT}`);
+  console.log(`[Socket.IO] Server running on port ${PORT}`);
 });
 
 process.on('SIGINT', () => {
-    console.log('Socket.IO server shutting down...');
+    console.log('[Socket.IO] Server shutting down...');
     io.close(() => {
-        console.log('Socket.IO server closed.');
+        console.log('[Socket.IO] Server closed.');
         httpServer.close(() => {
-            console.log('HTTP server closed.');
+            console.log('[HTTP] Server closed.');
             process.exit(0);
         });
     });

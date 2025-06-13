@@ -30,7 +30,7 @@ export async function GET(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const userId = params.userId;
+    const { userId } = await params;
 
     if (!userId || !MObjectId.isValid(userId)) {
       return NextResponse.json({ message: 'Valid userId parameter is required' }, { status: 400 });

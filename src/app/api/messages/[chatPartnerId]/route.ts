@@ -30,7 +30,7 @@ async function getChatMessagesHandler(
     return NextResponse.json({ message: 'Authentication required' }, { status: 401 });
   }
 
-  const { chatPartnerId } = params;
+  const { chatPartnerId } = await params;
   if (!MObjectId.isValid(chatPartnerId)) {
     return NextResponse.json({ message: 'Invalid chat partner ID format' }, { status: 400 });
   }
