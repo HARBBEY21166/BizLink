@@ -13,12 +13,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 
-// Mock data - replace with API calls and real-time updates
-const mockChatPartners: Record<string, User> = {
-  'i1': { id: 'i1', name: 'Victoria Venture', email: 'victoria@example.com', role: 'investor', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "woman executive", isOnline: true },
-  'e2': { id: 'e2', name: 'Bob Builder', email: 'bob@example.com', role: 'entrepreneur', startupDescription: 'LearnAI Co.', createdAt: new Date().toISOString(), avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "man developer", isOnline: false },
-};
-
+// Mock data - replace with API calls and real-time updates for messages
 const mockMessages: Record<string, ChatMessage[]> = {
   'i1': [
     { id: 'm1', senderId: 'i1', receiverId: 'currentUser', message: 'Hello! Interested in your startup.', timestamp: new Date(Date.now() - 5 * 60000).toISOString() },
@@ -40,25 +35,91 @@ export default function ChatPage() {
   const [chatPartner, setChatPartner] = useState<User | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorReason, setErrorReason] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
 
   useEffect(() => {
+    console.log("ChatPage useEffect: Fired. ChatId from params:", chatId);
+    setIsLoading(true);
+    setErrorReason(null); // Reset error reason
+
     const user = getAuthenticatedUser();
     setCurrentUser(user);
+    console.log("ChatPage useEffect: currentUser from localStorage:", user);
 
-    if (user && chatId) {
-      const partner = mockChatPartners[chatId]; // Fetch partner details
-      setChatPartner(partner);
-      
-      const chatMessages = (mockMessages[chatId] || []).map(msg => ({
-        ...msg,
-        senderId: msg.senderId === 'currentUser' ? user.id : msg.senderId,
-        receiverId: msg.receiverId === 'currentUser' ? user.id : msg.receiverId,
-      }));
-      setMessages(chatMessages);
+    if (!user) {
+      console.error("ChatPage useEffect Error: No authenticated user found (currentUser is null).");
+      setChatPartner(null);
+      setErrorReason("Current user not authenticated.");
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
+
+    if (!chatId) {
+      console.error("ChatPage useEffect Error: No chatId provided in URL params.");
+      setChatPartner(null);
+      setErrorReason("Chat partner ID missing from URL.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (user.id === chatId) {
+        console.warn("ChatPage useEffect Warning: Attempting to chat with oneself. User ID and Chat ID are the same:", chatId);
+        setChatPartner(null); 
+        setErrorReason("Cannot initiate a chat with yourself.");
+        setIsLoading(false);
+        return;
+    }
+
+    async function fetchChatPartnerAndMessages(partnerId: string) {
+      console.log("ChatPage fetchChatPartnerAndMessages: Fetching partner with ID:", partnerId);
+      try {
+        const response = await fetch(`/api/users/${partnerId}`);
+        console.log("ChatPage fetchChatPartnerAndMessages: API response status for partner:", response.status);
+        if (!response.ok) {
+          setChatPartner(null);
+          if (response.status === 404) {
+            console.warn(`ChatPage fetchChatPartnerAndMessages: Chat partner with ID ${partnerId} not found (404).`);
+            setErrorReason(`Chat partner (ID: ${partnerId}) not found.`);
+          } else {
+            const errorText = await response.text().catch(() => "Could not read error text");
+            console.error(`ChatPage fetchChatPartnerAndMessages: Failed to fetch chat partner. Status: ${response.status}. Response: ${errorText}`);
+            setErrorReason(`Failed to load chat partner (Status: ${response.status}).`);
+          }
+        } else {
+          const partnerData: User = await response.json();
+          console.log("ChatPage fetchChatPartnerAndMessages: Successfully fetched chatPartner:", partnerData);
+          setChatPartner(partnerData);
+          
+          // Still using mock messages, keyed by chatPartner.id (which is chatId)
+          // Ensure 'user' is the one from the top of useEffect, not a stale closure.
+          const currentAuthUser = getAuthenticatedUser(); // Re-fetch to be absolutely sure for message mapping
+          if (currentAuthUser) {
+            const chatMsgs = (mockMessages[partnerId as string] || []).map(msg => ({
+              ...msg,
+              senderId: msg.senderId === 'currentUser' ? currentAuthUser.id : msg.senderId,
+              receiverId: msg.receiverId === 'currentUser' ? currentAuthUser.id : msg.receiverId,
+            }));
+            setMessages(chatMsgs);
+            console.log("ChatPage fetchChatPartnerAndMessages: Mock messages set for partnerId:", partnerId);
+          } else {
+            console.warn("ChatPage fetchChatPartnerAndMessages: currentUser became null before setting messages.");
+            setMessages([]);
+          }
+        }
+      } catch (err) {
+        console.error("ChatPage fetchChatPartnerAndMessages: Error during fetch operation:", err);
+        setChatPartner(null);
+        setErrorReason("An unexpected error occurred while fetching chat partner data.");
+      } finally {
+        console.log("ChatPage fetchChatPartnerAndMessages: Setting isLoading to false.");
+        setIsLoading(false);
+      }
+    }
+
+    fetchChatPartnerAndMessages(chatId);
+
   }, [chatId]);
 
   useEffect(() => {
@@ -68,7 +129,10 @@ export default function ChatPage() {
   }, [messages]);
 
   const handleSendMessage = (messageText: string) => {
-    if (!currentUser || !chatPartner) return;
+    if (!currentUser || !chatPartner) {
+        console.warn("handleSendMessage: Cannot send message, currentUser or chatPartner is null.");
+        return;
+    }
 
     const newMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
@@ -78,6 +142,7 @@ export default function ChatPage() {
       timestamp: new Date().toISOString(),
     };
     setMessages(prevMessages => [...prevMessages, newMessage]);
+    // TODO: Send message to backend API
   };
   
   const getInitials = (name: string = "") => {
@@ -93,7 +158,21 @@ export default function ChatPage() {
   }
 
   if (!currentUser || !chatPartner) {
-    return <p className="text-center py-10 text-muted-foreground">Chat not found or user not authenticated.</p>;
+    // Determine a more specific reason if not already set by useEffect
+    let displayReason = errorReason;
+    if (!displayReason) {
+        if (!currentUser && !chatPartner) {
+            displayReason = "User authentication and chat partner details are missing.";
+        } else if (!currentUser) {
+            displayReason = "User not authenticated or session expired.";
+        } else if (!chatPartner) {
+            displayReason = "Chat partner not found or could not be loaded.";
+        } else {
+            displayReason = "Please try again or select a different chat."
+        }
+    }
+    console.warn(`ChatPage render: Displaying 'Chat not found or user not authenticated'. Reason: ${displayReason}. CurrentUser exists: ${!!currentUser}, ChatPartner exists: ${!!chatPartner}`);
+    return <p className="text-center py-10 text-muted-foreground">Chat not found or user not authenticated. ({displayReason})</p>;
   }
   
   return (
