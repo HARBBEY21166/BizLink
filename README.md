@@ -80,20 +80,9 @@ BizLink includes the following core features:
 
     # Application URL (Important for password reset links)
     NEXT_PUBLIC_APP_URL=http://localhost:9002 # Change to your deployed URL in production
-
-    # Genkit/Google AI (if using specific API keys directly, often configured in code)
-    # GOOGLE_API_KEY=your_google_ai_api_key # Example, check genkit.ts for actual configuration
     ```
 
-4.  **Run Genkit Development Server (Optional, for AI flow testing):**
-    Open a separate terminal and run:
-    ```bash
-    npm run genkit:dev
-    # or for auto-reloading on changes
-    # npm run genkit:watch
-    ```
-
-5.  **Run the Next.js development server:**
+4.  **Run the Next.js development server:**
     ```bash
     npm run dev
     # or
