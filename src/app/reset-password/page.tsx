@@ -1,16 +1,14 @@
-
 'use client';
 
-import ResetPasswordForm from '@/components/auth/reset-password-form';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export default function ResetPasswordPage() {
-  const searchParams = useSearchParams();
+function ResetPasswordPageContent() {
+   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
   const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
@@ -54,4 +52,12 @@ export default function ResetPasswordPage() {
       <ResetPasswordForm token={token!} />
     </div>
   );
+}
+
+export default function ResetPasswordPage() {
+ return (
+ <Suspense fallback={<div>Loading...</div>}>
+ <ResetPasswordPageContent />
+ </Suspense>
+ );
 }
