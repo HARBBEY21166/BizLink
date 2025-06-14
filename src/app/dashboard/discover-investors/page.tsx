@@ -9,10 +9,39 @@ import { useEffect, useState, useCallback } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
 import { useToast } from '@/hooks/use-toast';
 
+const mockInvestors: User[] = [
+  {
+    id: 'mock-investor-1',
+    name: 'Michael Mockley',
+    email: 'michael.mock@example.com',
+    role: 'investor',
+    bio: 'A sample investor profile for demonstration purposes. Interested in innovative tech, renewable energy, and SaaS platforms. Looking for early-stage startups with strong teams.',
+    investmentInterests: ['AI', 'Blockchain', 'SaaS', 'Renewable Energy'],
+    portfolioCompanies: ['MockTech Global', 'Sample Solutions Inc.', 'Alpha Mock Ventures'],
+    createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), // Approx 100 days ago
+    avatarUrl: 'https://placehold.co/100x100.png',
+    dataAiHint: 'man suit',
+    isOnline: true,
+  },
+  {
+    id: 'mock-investor-2',
+    name: 'Sophia Sampleton',
+    email: 'sophia.sample@example.com',
+    role: 'investor',
+    bio: 'Experienced angel investor focusing on consumer goods and e-commerce. This is a mock profile to showcase platform features.',
+    investmentInterests: ['E-commerce', 'Consumer Goods', 'Marketplaces'],
+    portfolioCompanies: ['Retail Mock Corp', 'DirectSample Goods'],
+    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(), // Approx 50 days ago
+    avatarUrl: 'https://placehold.co/100x100.png',
+    dataAiHint: 'woman business',
+    isOnline: false,
+  },
+];
+
 export default function DiscoverInvestorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [investors, setInvestors] = useState<User[]>([]);
+  const [displayedProfiles, setDisplayedProfiles] = useState<User[]>([]); // Combined real and mock
   const [bookmarkedProfileIds, setBookmarkedProfileIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +61,14 @@ export default function DiscoverInvestorsPage() {
         throw new Error(errorData.message || `Failed to fetch investors: ${investorsResponse.statusText}`);
       }
       const investorsData: User[] = await investorsResponse.json();
-      setInvestors(investorsData);
+      
+      // Combine real investors with mock investors
+      const allProfiles = [...investorsData, ...mockInvestors];
+      setDisplayedProfiles(allProfiles);
 
       if (!bookmarksResponse.ok) {
         const errorData = await bookmarksResponse.json();
         console.warn('Failed to fetch bookmarked IDs:', errorData.message || bookmarksResponse.statusText);
-        // Don't throw, allow page to load, bookmarks will just appear as not bookmarked
         setBookmarkedProfileIds(new Set()); 
       } else {
         const bookmarkedIdsData: string[] = await bookmarksResponse.json();
@@ -48,6 +79,7 @@ export default function DiscoverInvestorsPage() {
       console.error(err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Could not load page data."});
+      setDisplayedProfiles([...mockInvestors]); // Show mocks even if API fails
     } finally {
       setIsLoading(false);
     }
@@ -62,8 +94,10 @@ export default function DiscoverInvestorsPage() {
       fetchPageData(token);
     } else if (user && user.role !== 'entrepreneur') {
       setIsLoading(false);
+      setDisplayedProfiles([]); // Clear profiles if not allowed
     } else {
       setIsLoading(false); // No user or no token
+      setDisplayedProfiles([]);
     }
   }, [fetchPageData]);
   
@@ -77,11 +111,14 @@ export default function DiscoverInvestorsPage() {
       }
       return newIds;
     });
-    // Optionally, could refetch from `/api/bookmarks/ids` to ensure sync,
-    // but optimistic update is usually fine for this.
+    // For mock profiles, the API call in BookmarkButton will fail gracefully.
+    // For real profiles, this optimistic update is fine.
+    // If a more robust sync is needed after bookmarking real profiles, one could refetch:
+    // const token = localStorage.getItem('bizlinkToken');
+    // if (currentUser && token && !profileId.startsWith('mock-')) fetchPageData(token);
   }, []);
 
-  const filteredInvestors = investors.filter(i =>
+  const filteredDisplayProfiles = displayedProfiles.filter(i =>
     i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (i.bio && i.bio.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (i.investmentInterests && i.investmentInterests.join(', ').toLowerCase().includes(searchTerm.toLowerCase()))
@@ -96,7 +133,7 @@ export default function DiscoverInvestorsPage() {
   }
   
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading Investors...</span></div>;
   }
 
   return (
@@ -116,9 +153,9 @@ export default function DiscoverInvestorsPage() {
 
       {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
       
-      {!isLoading && !error && filteredInvestors.length > 0 ? (
+      {!isLoading && !error && filteredDisplayProfiles.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredInvestors.map((investor) => (
+          {filteredDisplayProfiles.map((investor) => (
             <InvestorCard 
                 key={investor.id} 
                 investor={investor}
@@ -129,7 +166,7 @@ export default function DiscoverInvestorsPage() {
         </div>
       ) : null}
 
-      {!isLoading && !error && filteredInvestors.length === 0 && (
+      {!isLoading && !error && filteredDisplayProfiles.length === 0 && (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">No investors found matching your search criteria.</p>
           <p className="text-sm text-muted-foreground">Try different keywords or check back later.</p>

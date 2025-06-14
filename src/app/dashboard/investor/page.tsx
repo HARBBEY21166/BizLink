@@ -9,10 +9,40 @@ import { useEffect, useState, useCallback } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
 import { useToast } from '@/hooks/use-toast';
 
+const mockEntrepreneurs: User[] = [
+  {
+    id: 'mock-entrepreneur-1',
+    name: 'Eva Innovate',
+    email: 'eva.mock@example.com',
+    role: 'entrepreneur',
+    bio: 'Pioneering AI-driven solutions for sustainable agriculture. This is a sample profile for demonstration.',
+    startupDescription: 'AgriFuture AI',
+    fundingNeed: '$750,000 Seed',
+    pitchDeckUrl: 'https://example.com/mock-pitchdeck.pdf',
+    createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+    avatarUrl: 'https://placehold.co/100x100.png',
+    dataAiHint: 'woman tech',
+    isOnline: true,
+  },
+  {
+    id: 'mock-entrepreneur-2',
+    name: 'Alex Builder',
+    email: 'alex.mock@example.com',
+    role: 'entrepreneur',
+    bio: 'Developing a platform to connect local artisans with global markets. Mock profile to illustrate diverse startup ideas.',
+    startupDescription: 'Artisan Connect',
+    fundingNeed: '$300,000 Pre-seed',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    avatarUrl: 'https://placehold.co/100x100.png',
+    dataAiHint: 'person creative',
+    isOnline: false,
+  },
+];
+
 export default function InvestorDashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [entrepreneurs, setEntrepreneurs] = useState<User[]>([]);
+  const [displayedProfiles, setDisplayedProfiles] = useState<User[]>([]); // Combined real and mock
   const [sentRequests, setSentRequests] = useState<CollaborationRequest[]>([]);
   const [bookmarkedProfileIds, setBookmarkedProfileIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -35,7 +65,8 @@ export default function InvestorDashboardPage() {
         throw new Error(errorData.message || `Failed to fetch entrepreneurs: ${entrepreneursResponse.statusText}`);
       }
       const entrepreneursData: User[] = await entrepreneursResponse.json();
-      setEntrepreneurs(entrepreneursData);
+      const allProfiles = [...entrepreneursData, ...mockEntrepreneurs];
+      setDisplayedProfiles(allProfiles);
 
       // Sent Requests
       if (!sentRequestsResponse.ok) {
@@ -59,6 +90,7 @@ export default function InvestorDashboardPage() {
       console.error(err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Could not load dashboard data."});
+      setDisplayedProfiles([...mockEntrepreneurs]); // Show mocks even if API fails
     } finally {
       setIsLoading(false);
     }
@@ -73,25 +105,29 @@ export default function InvestorDashboardPage() {
       fetchInvestorDashboardData(token);
     } else if (user && user.role !== 'investor') {
       setIsLoading(false);
+      setDisplayedProfiles([]);
     } else {
       setIsLoading(false);
+      setDisplayedProfiles([]);
     }
   }, [fetchInvestorDashboardData]);
 
   const handleDataRefresh = useCallback(() => {
     const token = localStorage.getItem('bizlinkToken');
     if (currentUser && currentUser.role === 'investor' && token) {
-        fetchInvestorDashboardData(token); // Refetches entrepreneurs, sent requests, and bookmarks
+        fetchInvestorDashboardData(token); 
     }
   }, [currentUser, fetchInvestorDashboardData]);
 
-  const filteredEntrepreneurs = entrepreneurs.filter(e =>
+  const filteredDisplayProfiles = displayedProfiles.filter(e =>
     e.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (e.startupDescription && e.startupDescription.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (e.bio && e.bio.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const getRequestStatusForEntrepreneur = (entrepreneurId: string): CollaborationRequest['status'] | 'not_sent' => {
+    // Mock profiles won't have sent requests in the DB
+    if (entrepreneurId.startsWith('mock-')) return 'not_sent'; 
     const request = sentRequests.find(r => r.entrepreneurId === entrepreneurId);
     return request ? request.status : 'not_sent';
   }
@@ -105,7 +141,7 @@ export default function InvestorDashboardPage() {
   }
   
   if (isLoading && !error) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading Entrepreneurs...</span></div>;
   }
 
   return (
@@ -125,22 +161,22 @@ export default function InvestorDashboardPage() {
       
       {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
       
-      {!isLoading && !error && filteredEntrepreneurs.length > 0 ? (
+      {!isLoading && !error && filteredDisplayProfiles.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEntrepreneurs.map((entrepreneur) => (
+          {filteredDisplayProfiles.map((entrepreneur) => (
             <EntrepreneurCard 
               key={entrepreneur.id} 
               entrepreneur={entrepreneur}
               initialRequestStatus={getRequestStatusForEntrepreneur(entrepreneur.id)}
-              onRequestSent={handleDataRefresh} // Renamed prop for clarity
+              onRequestSent={handleDataRefresh} 
               isBookmarked={bookmarkedProfileIds.has(entrepreneur.id)}
-              onBookmarkToggle={handleDataRefresh} // Re-fetch all data on bookmark toggle
+              onBookmarkToggle={handleDataRefresh} 
             />
           ))}
         </div>
       ) : null}
 
-      {!isLoading && !error && filteredEntrepreneurs.length === 0 && (
+      {!isLoading && !error && filteredDisplayProfiles.length === 0 && (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">No entrepreneurs found matching your search.</p>
           <p className="text-sm text-muted-foreground">Try different keywords or check back later.</p>
