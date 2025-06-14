@@ -7,7 +7,8 @@ import type { CollaborationRequest, User } from '@/types';
 import { useState, useEffect, useCallback } from 'react';
 import { MailWarning, CheckCheck, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAuthenticatedUser } from '@/lib/mockAuth'; // For current user context for now
+import { getAuthenticatedUser } from '@/lib/mockAuth'; 
+import ProfileCompletionCard from '@/components/dashboard/common/profile-completion-card'; // Added import
 
 
 export default function EntrepreneurDashboardPage() {
@@ -46,12 +47,12 @@ export default function EntrepreneurDashboardPage() {
   }, [toast]);
 
   useEffect(() => {
-    const user = getAuthenticatedUser(); // Uses localStorage
+    const user = getAuthenticatedUser(); 
     setCurrentUser(user);
     if (user && user.role === 'entrepreneur') {
       fetchReceivedRequests();
     } else {
-      setIsLoading(false); // Not an entrepreneur or no user
+      setIsLoading(false); 
     }
   }, [fetchReceivedRequests]);
 
@@ -63,7 +64,6 @@ export default function EntrepreneurDashboardPage() {
       return;
     }
 
-    // Optimistically update UI
     const originalRequests = [...requests];
     setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: status } : r));
 
@@ -80,12 +80,10 @@ export default function EntrepreneurDashboardPage() {
       const responseData = await response.json();
 
       if (!response.ok) {
-        // Revert optimistic update
         setRequests(originalRequests);
         throw new Error(responseData.message || `Failed to ${status === 'accepted' ? 'accept' : 'reject'} request`);
       }
       
-      // Update with confirmed data from backend (though often same as optimistic)
       setRequests(prev => prev.map(r => r.id === requestId ? responseData : r));
 
       toast({ 
@@ -94,7 +92,6 @@ export default function EntrepreneurDashboardPage() {
       });
 
     } catch (error) {
-      // Revert optimistic update if not already done
       setRequests(originalRequests);
       toast({
         variant: 'destructive',
@@ -116,7 +113,6 @@ export default function EntrepreneurDashboardPage() {
   const filteredRequests = (status: CollaborationRequest['status']) => requests.filter(r => r.status === status);
 
   if (!currentUser && !isLoading) {
-     // This means getAuthenticatedUser returned null and we are done loading.
     return <p className="text-center py-10 text-muted-foreground">Please log in to view this page.</p>;
   }
   
@@ -131,6 +127,7 @@ export default function EntrepreneurDashboardPage() {
 
   return (
     <div className="space-y-8">
+      <ProfileCompletionCard user={currentUser} />
       <h1 className="font-headline text-3xl font-bold text-foreground">Collaboration Requests</h1>
       
       <Tabs defaultValue="pending" className="w-full">
@@ -176,4 +173,3 @@ export default function EntrepreneurDashboardPage() {
     </div>
   );
 }
-

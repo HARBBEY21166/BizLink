@@ -8,6 +8,7 @@ import { Search, Loader2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
 import { useToast } from '@/hooks/use-toast';
+import ProfileCompletionCard from '@/components/dashboard/common/profile-completion-card'; // Added import
 
 const mockEntrepreneurs: User[] = [
   {
@@ -65,7 +66,7 @@ export default function InvestorDashboardPage() {
         throw new Error(errorData.message || `Failed to fetch entrepreneurs: ${entrepreneursResponse.statusText}`);
       }
       const entrepreneursData: User[] = await entrepreneursResponse.json();
-      const allProfiles = [...entrepreneursData, ...mockEntrepreneurs];
+      const allProfiles = [...entrepreneursData, ...mockEntrepreneurs.filter(mock => !entrepreneursData.find(real => real.id === mock.id))];
       setDisplayedProfiles(allProfiles);
 
       // Sent Requests
@@ -126,7 +127,6 @@ export default function InvestorDashboardPage() {
   );
 
   const getRequestStatusForEntrepreneur = (entrepreneurId: string): CollaborationRequest['status'] | 'not_sent' => {
-    // Mock profiles won't have sent requests in the DB
     if (entrepreneurId.startsWith('mock-')) return 'not_sent'; 
     const request = sentRequests.find(r => r.entrepreneurId === entrepreneurId);
     return request ? request.status : 'not_sent';
@@ -146,6 +146,7 @@ export default function InvestorDashboardPage() {
 
   return (
     <div className="space-y-8">
+      <ProfileCompletionCard user={currentUser} />
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h1 className="font-headline text-3xl font-bold text-foreground">Discover Entrepreneurs</h1>
         <div className="relative w-full md:w-1/3">
