@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { User } from "@/types";
-import { Briefcase, Eye, MessageSquare, TrendingUp, UserCircle } from "lucide-react";
+import { Eye, MessageSquare, TrendingUp, UserCircle } from "lucide-react";
 import Link from "next/link";
 import BookmarkButton from "@/components/dashboard/common/bookmark-button";
 import { Badge } from "@/components/ui/badge";

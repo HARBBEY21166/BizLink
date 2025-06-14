@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { User } from "@/types";
-import { Briefcase, MessageSquare, Eye, TrendingUp, Archive } from "lucide-react";
+import { MessageSquare, Eye, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import BookmarkButton from "@/components/dashboard/common/bookmark-button"; // Added import
+import BookmarkButton from "@/components/dashboard/common/bookmark-button";
 
 interface InvestorCardProps {
   investor: User;
-  isBookmarked: boolean; // Added prop
-  onBookmarkToggle: (profileId: string, isBookmarked: boolean) => void; // Added prop
+  isBookmarked: boolean;
+  onBookmarkToggle: (profileId: string, isBookmarked: boolean) => void;
 }
 
 export default function InvestorCard({ investor, isBookmarked, onBookmarkToggle }: InvestorCardProps) {

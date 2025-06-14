@@ -28,26 +28,27 @@ export default function DashboardLayout({
       setCurrentUser(user);
       setAuthStatus('authenticated');
 
-      // Role-based route protection
       if (user) {
         const isInvestorBaseDashboard = pathname === ('/dashboard/investor');
         const isEntrepreneurBaseDashboard = pathname === ('/dashboard/entrepreneur');
         const isPitchAnalyzer = pathname.startsWith('/dashboard/pitch-analyzer');
         const isDiscoverInvestors = pathname.startsWith('/dashboard/discover-investors');
-        const isProfilePage = pathname.startsWith('/dashboard/profile'); // Own profile or other users'
-        const isChatPage = pathname.startsWith('/dashboard/chat'); // Chat pages
+        const isProfilePage = pathname.startsWith('/dashboard/profile');
+        const isChatPage = pathname.startsWith('/dashboard/chat');
+        const isBookmarksPage = pathname.startsWith('/dashboard/bookmarks');
+
 
         let allowed = false;
 
         if (user.role === 'investor') {
-          if (isInvestorBaseDashboard || isProfilePage || isChatPage) {
+          if (isInvestorBaseDashboard || isProfilePage || isChatPage || isBookmarksPage) {
             allowed = true;
           } else if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors) {
              router.replace('/dashboard/investor');
              return;
           }
         } else if (user.role === 'entrepreneur') {
-          if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors || isProfilePage || isChatPage) {
+          if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors || isProfilePage || isChatPage || isBookmarksPage) {
             allowed = true;
           } else if (isInvestorBaseDashboard) {
              router.replace('/dashboard/entrepreneur');
@@ -55,10 +56,7 @@ export default function DashboardLayout({
           }
         }
         
-        // If not explicitly allowed and not a general shared page like profile/chat, redirect.
-        // This handles cases like trying to access `/dashboard` directly or other unknown sub-routes.
-        if (!allowed && !(isProfilePage || isChatPage)) {
-             // Fallback for any other /dashboard root access or undefined paths
+        if (!allowed && !(isProfilePage || isChatPage || isBookmarksPage)) {
             if (pathname === '/dashboard' || pathname === '/dashboard/'){
                 if (user.role === 'investor') router.replace('/dashboard/investor');
                 else router.replace('/dashboard/entrepreneur');
@@ -78,14 +76,13 @@ export default function DashboardLayout({
   }
 
   if (authStatus === 'unauthenticated' || !currentUser) {
-    // This will typically not be seen due to redirect, but good for safety
     return null; 
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]"> {/* Adjust height considering header */}
+    <div className="flex h-screen max-h-[calc(100vh_-_theme(spacing.16))]"> {/* Header is h-16 (spacing.16) */}
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6 bg-background">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/30">
         {children}
       </main>
     </div>

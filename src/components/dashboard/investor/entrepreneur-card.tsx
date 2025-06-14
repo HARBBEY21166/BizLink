@@ -10,14 +10,14 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { getAuthenticatedUser } from '@/lib/mockAuth'; 
 import { useToast } from "@/hooks/use-toast";
-import BookmarkButton from "@/components/dashboard/common/bookmark-button"; // Added import
+import BookmarkButton from "@/components/dashboard/common/bookmark-button";
 
 interface EntrepreneurCardProps {
   entrepreneur: User;
   initialRequestStatus: CollaborationRequest['status'] | 'not_sent';
-  onRequestSent: () => void; // Callback to notify parent to refresh data
-  isBookmarked: boolean; // Added prop
-  onBookmarkToggle: (profileId: string, isBookmarked: boolean) => void; // Added prop
+  onRequestSent: () => void;
+  isBookmarked: boolean;
+  onBookmarkToggle: (profileId: string, isBookmarked: boolean) => void;
 }
 
 export default function EntrepreneurCard({ 

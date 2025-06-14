@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
 import type { ChatMessage, User } from '@/types';
-import { ArrowLeft, Loader2, WifiOff } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -18,7 +18,7 @@ const POLLING_INTERVAL = 5000; // 5 seconds
 
 export default function ChatPage() {
   const params = useParams();
-  const chatId = params.chatId as string; // This is the chatPartner's ID
+  const chatId = params.chatId as string;
   const { toast } = useToast();
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -34,9 +34,8 @@ export default function ChatPage() {
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isFetchingMessagesRef = useRef(false); // To prevent concurrent fetches
+  const isFetchingMessagesRef = useRef(false);
 
-  // Initialize current user
   useEffect(() => {
     const user = getAuthenticatedUser();
     setCurrentUser(user);
@@ -47,7 +46,6 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Fetch chat partner details
   useEffect(() => {
     if (!currentUser || !chatId) {
       setIsLoadingPartner(false);
@@ -78,7 +76,6 @@ export default function ChatPage() {
       .finally(() => setIsLoadingPartner(false));
   }, [chatId, currentUser]);
 
-  // Function to fetch messages
   const fetchMessages = useCallback(async (isInitialFetch = false) => {
     if (!currentUser || !chatPartner || isFetchingMessagesRef.current) {
       if (isInitialFetch) setIsLoadingMessages(false);
@@ -115,7 +112,6 @@ export default function ChatPage() {
       if (isInitialFetch) {
         setMessagesError(err instanceof Error ? err.message : "Could not load messages.");
       }
-      // Don't show toast for polling errors unless it's critical
       console.error("[ChatPage] Error fetching messages:", err);
     } finally {
       if (isInitialFetch) {
@@ -125,21 +121,17 @@ export default function ChatPage() {
     }
   }, [currentUser, chatPartner]);
 
-  // Initial fetch and setup polling
   useEffect(() => {
     if (currentUser && chatPartner) {
-      fetchMessages(true); // Initial fetch
+      fetchMessages(true); 
 
-      // Clear any existing interval
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
-      // Setup polling
       pollingIntervalRef.current = setInterval(() => {
         fetchMessages(false);
       }, POLLING_INTERVAL);
     }
-    // Cleanup polling on component unmount or when dependencies change
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
@@ -147,7 +139,6 @@ export default function ChatPage() {
     };
   }, [currentUser, chatPartner, fetchMessages]);
 
-  // Scroll to bottom
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -166,8 +157,6 @@ export default function ChatPage() {
     }
 
     setIsSendingMessage(true);
-
-    // Optimistic UI update
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage: ChatMessage = {
       id: tempId, 
@@ -197,17 +186,12 @@ export default function ChatPage() {
         const errorData = await response.json();
         throw new Error(errorData.message || "Failed to send message");
       }
-      // const savedMessage: ChatMessage = await response.json();
-      // Message will be updated by the next poll. Or we can manually update it here.
-      // For simplicity, let polling handle it.
-      // Or, remove optimistic and refetch immediately:
-      setMessages(prev => prev.filter(m => m.id !== tempId)); // Remove optimistic
-      await fetchMessages(false); // Refetch messages immediately
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      await fetchMessages(false);
 
     } catch (error) {
-      setMessages(prev => prev.filter(m => m.id !== tempId)); // Remove optimistic on error
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       toast({variant: 'destructive', title: 'Message Failed', description: error instanceof Error ? error.message : "Could not send message."});
-      // Optionally, re-add optimistic message with error state if desired
     } finally {
       setIsSendingMessage(false);
     }
@@ -237,7 +221,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-full bg-card shadow-lg rounded-lg overflow-hidden">
-      <div className="flex items-center p-4 border-b bg-background">
+      <div className="flex items-center p-3 sm:p-4 border-b bg-background">
         <Button variant="ghost" size="icon" asChild className="mr-2 md:hidden">
           <Link href="/dashboard/chat">
             <ArrowLeft className="h-5 w-5" />
@@ -258,7 +242,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4 space-y-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-3 sm:p-4 space-y-4" ref={scrollAreaRef}>
         {messagesError && <p className="text-center text-destructive">Error loading messages: {messagesError}</p>}
         {!messagesError && messages.length === 0 && !isLoadingMessages && (
             <p className="text-center text-muted-foreground py-10">No messages yet. Start the conversation!</p>

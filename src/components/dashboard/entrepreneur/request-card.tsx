@@ -24,12 +24,12 @@ export default function RequestCard({ request, onAccept, onReject }: RequestCard
   
   const statusColors: { [key in CollaborationRequest['status']]: string } = {
     pending: 'bg-yellow-500 hover:bg-yellow-500/90',
-    accepted: 'bg-green-600 hover:bg-green-600/90', // Changed green to be more vibrant
-    rejected: 'bg-red-600 hover:bg-red-600/90', // Changed red to be more vibrant
+    accepted: 'bg-green-600 hover:bg-green-600/90',
+    rejected: 'bg-red-600 hover:bg-red-600/90',
   };
 
   return (
-    <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+    <Card className="w-full transform transition-all duration-300 hover:shadow-xl hover:-translate-y-1 flex flex-col">
       <CardHeader className="flex flex-row items-start gap-4 space-y-0">
         <Avatar className="h-16 w-16 border-2 border-primary">
           <AvatarImage src={`https://placehold.co/100x100.png?text=${getInitials(request.investorName)}`} alt={request.investorName} data-ai-hint="person suit" />
@@ -47,18 +47,18 @@ export default function RequestCard({ request, onAccept, onReject }: RequestCard
         </div>
         <Badge className={`${statusColors[request.status]} text-primary-foreground capitalize`}>{request.status}</Badge>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow">
         <p className="text-sm text-foreground mb-2 line-clamp-2">
           {request.message || (request.investorBioSnippet || "Interested in learning more about your venture and exploring potential collaboration.")}
         </p>
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2">
+      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 mt-auto pt-4 border-t">
         <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
           <Link href={`/dashboard/profile/user/${request.investorId}`}>
             <Eye className="mr-2 h-4 w-4" /> View Profile
           </Link>
         </Button>
-        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto">
+        <Button variant="outline" size="sm" asChild className="w-full sm:w-auto" disabled={request.status !== 'accepted'}>
           <Link href={`/dashboard/chat/${request.investorId}`}>
             <MessageSquare className="mr-2 h-4 w-4" /> Message
           </Link>
