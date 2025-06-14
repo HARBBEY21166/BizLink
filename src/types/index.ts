@@ -154,3 +154,11 @@ export interface MongoNotificationDocument {
   actorName?: string;
   actorAvatarUrl?: string;
 }
+
+// For Password Reset Tokens
+export interface MongoPasswordResetTokenDocument {
+  _id: MongoObjectId;
+  userId: MongoObjectId;
+  token: string;
+  expiresAt: Date;
+}
