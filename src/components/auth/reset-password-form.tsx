@@ -15,77 +15,64 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import type { User } from '@/types';
+import { useRouter } from 'next/navigation'; // Added for redirecting
+
+interface ResetPasswordFormProps {
+  token: string;
+}
 
 const formSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address.' }),
-  password: z.string().min(1, { message: 'Password is required.' }),
+  password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });
 
-export default function LoginForm() {
-  const router = useRouter();
+export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: '',
       password: '',
+      confirmPassword: '',
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ token, password: values.password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed. Please try again.');
+        throw new Error(data.message || 'Failed to reset password.');
       }
       
-      const user: User = data.user;
-      const token: string = data.token;
-
-      if (user && token && typeof window !== 'undefined') {
-        localStorage.setItem('bizlinkUser', JSON.stringify(user));
-        localStorage.setItem('bizlinkToken', token);
-        
-        // Dispatch custom event to notify other components (like UserNav)
-        window.dispatchEvent(new CustomEvent('authChange'));
-        
-        toast({
-          title: 'Login Successful',
-          description: `Welcome back, ${user.name}!`,
-        });
-
-        if (user.role === 'investor') {
-          router.push('/dashboard/investor');
-        } else {
-          router.push('/dashboard/entrepreneur');
-        }
-      } else {
-         throw new Error('Invalid response from server.');
-      }
+      toast({
+        title: 'Password Reset Successful',
+        description: data.message + ' You can now log in with your new password.',
+      });
+      router.push('/login'); // Redirect to login page
 
     } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Invalid email or password. Please try again.',
+        title: 'Reset Failed',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.',
       });
     } finally {
       setIsLoading(false);
@@ -95,9 +82,9 @@ export default function LoginForm() {
   return (
     <Card className="w-full max-w-md mx-auto shadow-xl">
       <CardHeader>
-        <CardTitle className="font-headline text-2xl text-center">Login to BizLink</CardTitle>
+        <CardTitle className="font-headline text-2xl text-center">Reset Your Password</CardTitle>
         <CardDescription className="text-center">
-          Enter your credentials to access your account.
+          Enter your new password below.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -105,12 +92,12 @@ export default function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
               control={form.control}
-              name="email"
+              name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>New Password</FormLabel>
                   <FormControl>
-                    <Input placeholder="you@example.com" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -118,15 +105,10 @@ export default function LoginForm() {
             />
             <FormField
               control={form.control}
-              name="password"
+              name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <div className="flex justify-between items-center">
-                    <FormLabel>Password</FormLabel>
-                    <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
-                        Forgot Password?
-                    </Link>
-                  </div>
+                  <FormLabel>Confirm New Password</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
@@ -136,16 +118,10 @@ export default function LoginForm() {
             />
             <Button type="submit" className="w-full font-semibold" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Login
+              Set New Password
             </Button>
           </form>
         </Form>
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-primary hover:underline">
-            Register here
-          </Link>
-        </p>
       </CardContent>
     </Card>
   );
