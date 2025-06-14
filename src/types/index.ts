@@ -1,3 +1,4 @@
+
 import type { ObjectId as MongoObjectId } from 'mongodb';
 
 export type Role = 'investor' | 'entrepreneur';
@@ -17,7 +18,7 @@ export interface User {
   portfolioCompanies?: string[]; // Investor only
   createdAt: string; // ISO Date string
   avatarUrl?: string; // Optional: URL to avatar image
-  isOnline?: boolean; // For chat status - will remain simple boolean for now
+  isOnline?: boolean; // For chat status
   dataAiHint?: string; // For placeholder image generation
 }
 
@@ -104,4 +105,52 @@ export interface PitchAnalysis {
   strengths: string;
   weaknesses: string;
   advice: string;
+}
+
+// For Bookmarks
+export interface Bookmark {
+    id: string;
+    userId: string;
+    bookmarkedProfileId: string;
+    createdAt: string;
+}
+
+export interface MongoBookmarkDocument {
+    _id: MongoObjectId;
+    userId: MongoObjectId;
+    bookmarkedProfileId: MongoObjectId;
+    createdAt: Date;
+}
+
+// For Notifications
+export type NotificationType =
+  | 'new_message'
+  | 'new_collaboration_request'
+  | 'request_accepted'
+  | 'request_rejected';
+
+export interface Notification {
+  id: string; // MongoDB _id as string
+  userId: string; // The ID of the user who should receive this notification
+  type: NotificationType;
+  message: string; // User-friendly message
+  link?: string; // Optional link to navigate to (e.g., chat, request page)
+  isRead: boolean;
+  createdAt: string; // ISO Date string
+  actorId?: string; // Optional: ID of the user who triggered the notification
+  actorName?: string; // Optional: Name of the user who triggered the notification
+  actorAvatarUrl?: string; // Optional: Avatar of the user who triggered the notification
+}
+
+export interface MongoNotificationDocument {
+  _id: MongoObjectId;
+  userId: MongoObjectId; // Recipient
+  type: NotificationType;
+  message: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: Date; // Stored as BSON Date
+  actorId?: MongoObjectId;
+  actorName?: string;
+  actorAvatarUrl?: string;
 }

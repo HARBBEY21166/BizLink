@@ -3,10 +3,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { verifyAuth } from '@/lib/authUtils';
-import type { User, MongoCollaborationRequestDocument, CollaborationRequest } from '@/types';
-import type { Collection } from 'mongodb';
+import type { User, MongoCollaborationRequestDocument, CollaborationRequest, MongoUserDocument } from '@/types';
+import type { Collection, Db } from 'mongodb'; // Added Db
 import { ObjectId as MObjectId } from 'mongodb';
 import { z } from 'zod';
+import { createNotification } from '@/lib/notificationUtils'; // Added import
 
 interface AuthenticatedRequest extends NextRequest {
   user?: { userId: string; role: User['role']; email: string };
@@ -16,7 +17,6 @@ const updateRequestSchema = z.object({
   status: z.enum(['accepted', 'rejected']),
 });
 
-// Helper to convert Mongo document to client-facing request
 function toClientRequest(mongoRequest: MongoCollaborationRequestDocument): CollaborationRequest {
   return {
     id: mongoRequest._id.toString(),
@@ -59,8 +59,9 @@ async function updateCollaborationRequestHandler(
 
     const client = await clientPromise;
     const dbName = process.env.MONGODB_DB_NAME || 'bizlink_db';
-    const db = client.db(dbName);
+    const db: Db = client.db(dbName); // Added Db type
     const requestsCollection: Collection<MongoCollaborationRequestDocument> = db.collection('collaborationRequests');
+    const usersCollection: Collection<MongoUserDocument> = db.collection('users');
 
     const requestToUpdate = await requestsCollection.findOne({ _id: new MObjectId(requestId) });
 
@@ -68,7 +69,6 @@ async function updateCollaborationRequestHandler(
       return NextResponse.json({ message: 'Collaboration request not found' }, { status: 404 });
     }
 
-    // Verify the request belongs to the authenticated entrepreneur
     if (requestToUpdate.entrepreneurId.toString() !== req.user.userId) {
       return NextResponse.json({ message: 'Forbidden: You cannot update this request' }, { status: 403 });
     }
@@ -83,7 +83,6 @@ async function updateCollaborationRequestHandler(
     );
 
     if (updateResult.matchedCount === 0) {
-      // Should not happen if findOne above succeeded, but good to check
       return NextResponse.json({ message: 'Collaboration request not found during update' }, { status: 404 });
     }
 
@@ -92,6 +91,20 @@ async function updateCollaborationRequestHandler(
          return NextResponse.json({ message: 'Failed to retrieve updated request' }, { status: 500 });
     }
 
+    // Create notification for the investor
+    const entrepreneurUserDoc = await usersCollection.findOne({ _id: updatedRequestDoc.entrepreneurId });
+    if (entrepreneurUserDoc) {
+        await createNotification({
+            db,
+            userId: updatedRequestDoc.investorId,
+            type: status === 'accepted' ? 'request_accepted' : 'request_rejected',
+            message: `${entrepreneurUserDoc.name} ${status} your collaboration request.`,
+            link: status === 'accepted' ? `/dashboard/chat/${updatedRequestDoc.entrepreneurId.toString()}` : `/dashboard/profile/user/${updatedRequestDoc.entrepreneurId.toString()}`,
+            actorId: entrepreneurUserDoc._id,
+            actorName: entrepreneurUserDoc.name,
+            actorAvatarUrl: entrepreneurUserDoc.avatarUrl,
+        });
+    }
 
     return NextResponse.json(toClientRequest(updatedRequestDoc), { status: 200 });
 

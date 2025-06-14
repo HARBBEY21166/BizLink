@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { verifyAuth } from '@/lib/authUtils';
 import type { User, MongoUserDocument, MongoCollaborationRequestDocument, CollaborationRequest } from '@/types';
-import type { Collection, ObjectId } from 'mongodb';
+import type { Collection, Db } from 'mongodb'; // ObjectId removed, Db added
 import { ObjectId as MObjectId } from 'mongodb';
 import { z } from 'zod';
+import { createNotification } from '@/lib/notificationUtils'; // Added import
 
 interface AuthenticatedRequest extends NextRequest {
   user?: { userId: string; role: User['role']; email: string };
@@ -37,23 +38,20 @@ async function createCollaborationRequestHandler(req: AuthenticatedRequest) {
 
     const client = await clientPromise;
     const dbName = process.env.MONGODB_DB_NAME || 'bizlink_db';
-    const db = client.db(dbName);
+    const db: Db = client.db(dbName); // Added Db type
     const usersCollection: Collection<MongoUserDocument> = db.collection('users');
     const requestsCollection: Collection<MongoCollaborationRequestDocument> = db.collection('collaborationRequests');
 
-    // Verify entrepreneur exists
     const entrepreneur = await usersCollection.findOne({ _id: new MObjectId(entrepreneurId), role: 'entrepreneur' });
     if (!entrepreneur) {
       return NextResponse.json({ message: 'Entrepreneur not found' }, { status: 404 });
     }
 
-    // Verify investor (current user) exists
-     const investor = await usersCollection.findOne({ _id: new MObjectId(req.user.userId) });
+    const investor = await usersCollection.findOne({ _id: new MObjectId(req.user.userId) });
     if (!investor) {
       return NextResponse.json({ message: 'Investor profile not found' }, { status: 404 });
     }
 
-    // Check for existing pending or accepted request
     const existingRequest = await requestsCollection.findOne({
       investorId: new MObjectId(req.user.userId),
       entrepreneurId: new MObjectId(entrepreneurId),
@@ -82,7 +80,18 @@ async function createCollaborationRequestHandler(req: AuthenticatedRequest) {
       return NextResponse.json({ message: 'Failed to create collaboration request' }, { status: 500 });
     }
     
-    // Construct client-facing object
+    // Create notification for the entrepreneur
+    await createNotification({
+        db,
+        userId: entrepreneur._id, // entrepreneur's MongoDB ObjectId
+        type: 'new_collaboration_request',
+        message: `${investor.name} sent you a collaboration request.`,
+        link: `/dashboard/entrepreneur`, // Or a more specific link if available
+        actorId: investor._id,
+        actorName: investor.name,
+        actorAvatarUrl: investor.avatarUrl,
+    });
+
     const createdRequest: CollaborationRequest = {
         id: result.insertedId.toString(),
         investorId: newRequestDocument.investorId.toString(),

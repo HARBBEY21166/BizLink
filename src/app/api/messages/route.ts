@@ -3,10 +3,11 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { verifyAuth } from '@/lib/authUtils';
-import type { User, MongoChatMessageDocument, ChatMessage } from '@/types';
-import type { Collection } from 'mongodb';
+import type { User, MongoChatMessageDocument, ChatMessage, MongoUserDocument } from '@/types';
+import type { Collection, Db } from 'mongodb';
 import { ObjectId as MObjectId } from 'mongodb';
 import { z } from 'zod';
+import { createNotification } from '@/lib/notificationUtils'; // Added import
 
 interface AuthenticatedRequest extends NextRequest {
   user?: { userId: string; role: User['role']; email: string };
@@ -52,22 +53,27 @@ async function postMessageHandler(req: AuthenticatedRequest) {
 
     const client = await clientPromise;
     const dbName = process.env.MONGODB_DB_NAME || 'bizlink_db';
-    const db = client.db(dbName);
+    const db: Db = client.db(dbName);
     const messagesCollection: Collection<Omit<MongoChatMessageDocument, '_id'>> = db.collection('messages');
+    const usersCollection: Collection<MongoUserDocument> = db.collection('users');
     
-    // Optional: Verify receiverId exists in users collection
-    // const usersCollection = db.collection('users');
-    // const receiverExists = await usersCollection.findOne({ _id: new MObjectId(receiverId) });
-    // if (!receiverExists) {
-    //   return NextResponse.json({ message: 'Receiver not found.' }, { status: 404 });
-    // }
+    const senderUserDoc = await usersCollection.findOne({ _id: new MObjectId(senderId) });
+    if (!senderUserDoc) {
+      // This should ideally not happen if user is authenticated
+      return NextResponse.json({ message: 'Sender not found.' }, { status: 404 });
+    }
+    
+    const receiverUserDoc = await usersCollection.findOne({ _id: new MObjectId(receiverId) });
+    if (!receiverUserDoc) {
+      return NextResponse.json({ message: 'Receiver not found.' }, { status: 404 });
+    }
 
     const newMessage: Omit<MongoChatMessageDocument, '_id'> = {
       senderId: new MObjectId(senderId),
       receiverId: new MObjectId(receiverId),
       message,
       timestamp: new Date(),
-      isRead: false, // Default to false
+      isRead: false,
     };
 
     const result = await messagesCollection.insertOne(newMessage);
@@ -75,6 +81,18 @@ async function postMessageHandler(req: AuthenticatedRequest) {
     if (!result.insertedId) {
       return NextResponse.json({ message: 'Failed to send message' }, { status: 500 });
     }
+    
+    // Create notification for the receiver
+    await createNotification({
+      db,
+      userId: new MObjectId(receiverId),
+      type: 'new_message',
+      message: `${senderUserDoc.name} sent you a message.`,
+      link: `/dashboard/chat/${senderId}`,
+      actorId: new MObjectId(senderId),
+      actorName: senderUserDoc.name,
+      actorAvatarUrl: senderUserDoc.avatarUrl,
+    });
     
     const createdMessageForClient: ChatMessage = {
       id: result.insertedId.toString(),
