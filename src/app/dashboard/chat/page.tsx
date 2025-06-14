@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -6,36 +7,10 @@ import { getAuthenticatedUser } from '@/lib/mockAuth';
 import type { Conversation, User } from '@/types';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Loader2, Search, MessageSquarePlus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-
-
-// Mock data
-const mockConversations: Conversation[] = [
-  {
-    id: 'i1', // This ID will be used as chatId, typically the other user's ID
-    participantA: { id: 'currentUser', name: 'Me', email: '', role: 'entrepreneur', createdAt: '' }, // Placeholder for current user
-    participantB: { id: 'i1', name: 'Victoria Venture', email: 'victoria@example.com', role: 'investor', createdAt: '', avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "woman ceo" },
-    lastMessage: { id: 'm3', senderId: 'i1', receiverId: 'currentUser', message: 'Could we schedule a call?', timestamp: new Date(Date.now() - 3 * 60000).toISOString() },
-    unreadCount: 1,
-  },
-  {
-    id: 'e2',
-    participantA: { id: 'currentUser', name: 'Me', email: '', role: 'investor', createdAt: '' },
-    participantB: { id: 'e2', name: 'Bob Builder', email: 'bob@example.com', role: 'entrepreneur', createdAt: '', startupDescription: "LearnAI Co.", avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "man tech" },
-    lastMessage: { id: 'm5', senderId: 'e2', receiverId: 'currentUser', message: 'Thanks! Appreciate that. Are you an investor?', timestamp: new Date(Date.now() - 9 * 60000).toISOString() },
-    unreadCount: 0,
-  },
-  {
-    id: 'i3',
-    participantA: { id: 'currentUser', name: 'Me', email: '', role: 'entrepreneur', createdAt: '' },
-    participantB: { id: 'i3', name: 'Sarah Strategist', email: 'sarah@example.com', role: 'investor', createdAt: '', avatarUrl: 'https://placehold.co/100x100.png', dataAiHint: "business person" },
-    lastMessage: { id: 'm6', senderId: 'i3', receiverId: 'currentUser', message: "Let's connect next week.", timestamp: new Date(Date.now() - 2 * 60 * 60000).toISOString() }, // 2 hours ago
-    unreadCount: 3,
-  }
-];
+import { useToast } from '@/hooks/use-toast';
 
 
 export default function ChatListPage() {
@@ -43,21 +18,45 @@ export default function ChatListPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+
+  const fetchConversations = useCallback(async (token: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/conversations', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch conversations');
+      }
+      const data: Conversation[] = await response.json();
+      setConversations(data);
+    } catch (error) {
+      console.error('Fetch conversations error:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error Loading Chats',
+        description: error instanceof Error ? error.message : 'Could not load your conversations.',
+      });
+      setConversations([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     const user = getAuthenticatedUser();
     setCurrentUser(user);
-    if (user) {
-      // In a real app, fetch conversations for `user.id`
-      // For mock, replace 'currentUser' in participantA with the actual user details
-      const userConversations = mockConversations.map(conv => ({
-        ...conv,
-        participantA: conv.participantA.id === 'currentUser' ? user : conv.participantA,
-      }));
-      setConversations(userConversations);
+    const token = localStorage.getItem('bizlinkToken');
+
+    if (user && token) {
+      fetchConversations(token);
+    } else {
+      setIsLoading(false);
+      setConversations([]);
     }
-    setIsLoading(false);
-  }, []);
+  }, [fetchConversations]);
   
   const getInitials = (name: string = "") => {
     return name
@@ -72,7 +71,11 @@ export default function ChatListPage() {
   );
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading Chats...</span></div>;
+  }
+  
+  if (!currentUser && !isLoading) {
+    return <div className="flex items-center justify-center h-full"><p className="text-muted-foreground">Please log in to view your messages.</p></div>;
   }
 
   return (
@@ -111,10 +114,12 @@ export default function ChatListPage() {
                              </p>
                            )}
                         </div>
-                        {conv.lastMessage && (
+                        {conv.lastMessage ? (
                           <p className={cn("text-sm text-muted-foreground truncate", conv.unreadCount && conv.unreadCount > 0 && "font-bold text-foreground")}>
                             {conv.lastMessage.senderId === currentUser?.id ? "You: " : ""}{conv.lastMessage.message}
                           </p>
+                        ) : (
+                            <p className="text-sm text-muted-foreground italic">No messages yet.</p>
                         )}
                       </div>
                       {conv.unreadCount && conv.unreadCount > 0 && (
@@ -133,7 +138,7 @@ export default function ChatListPage() {
         <div className="text-center py-12 flex-1 flex flex-col items-center justify-center">
           <MessageSquarePlus className="h-16 w-16 text-muted-foreground mb-4" />
           <p className="text-xl text-muted-foreground">No conversations yet.</p>
-          <p className="text-sm text-muted-foreground">Start networking to initiate chats.</p>
+          <p className="text-sm text-muted-foreground">Start networking to initiate chats, or check back later if you've recently started one.</p>
         </div>
       )}
     </div>
