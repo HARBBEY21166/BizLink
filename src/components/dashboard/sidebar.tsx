@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, UserCircle, Briefcase, MessageSquare, Brain, LogOut, Settings, SearchCode, Bookmark } from 'lucide-react'; // Added Bookmark
+import { LayoutDashboard, Users, UserCircle, Briefcase, MessageSquare, Brain, LogOut, Settings, SearchCode, Bookmark, ShieldCheck } from 'lucide-react'; // Added ShieldCheck for Admin
 import type { Role } from '@/types';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -44,10 +44,10 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Dashboard item is added dynamically first
   { href: '/dashboard/profile', label: 'My Profile', icon: UserCircle },
-  { href: '/dashboard/bookmarks', label: 'Bookmarks', icon: Bookmark }, // Added Bookmarks
+  { href: '/dashboard/bookmarks', label: 'Bookmarks', icon: Bookmark },
   { href: '/dashboard/chat', label: 'Messages', icon: MessageSquare },
-  { href: '/dashboard/pitch-analyzer', label: 'Pitch Analyzer', icon: Brain, roles: ['entrepreneur'] },
-  { href: '/dashboard/discover-investors', label: 'Discover Investors', icon: SearchCode, roles: ['entrepreneur'] },
+  { href: '/dashboard/pitch-analyzer', label: 'Pitch Analyzer', icon: Brain, roles: ['entrepreneur', 'admin'] }, // Admin can also see
+  { href: '/dashboard/discover-investors', label: 'Discover Investors', icon: SearchCode, roles: ['entrepreneur', 'admin'] }, // Admin can also see
   // { href: '/dashboard/settings', label: 'Settings', icon: Settings }, // Example for future
 ];
 
@@ -70,23 +70,38 @@ export default function Sidebar() {
   }, []);
 
   // Determine the correct dashboard link based on role for the main "Dashboard" item
-  const dashboardLink = userRole === 'investor' ? '/dashboard/investor' : '/dashboard/entrepreneur';
+  let dashboardLink = '/dashboard/profile'; // Default
+  let dashboardLabel = 'Dashboard';
+  let dashboardIcon = LayoutDashboard;
+
+  if (userRole === 'admin') {
+    dashboardLink = '/dashboard/admin';
+    dashboardLabel = 'Admin Panel';
+    dashboardIcon = ShieldCheck;
+  } else if (userRole === 'investor') {
+    dashboardLink = '/dashboard/investor';
+    dashboardLabel = 'Investor Dashboard';
+    dashboardIcon = Users;
+  } else if (userRole === 'entrepreneur') {
+    dashboardLink = '/dashboard/entrepreneur';
+    dashboardLabel = 'My Requests';
+    dashboardIcon = Briefcase;
+  }
   
   // Create a dynamic "Dashboard" nav item
   const dynamicDashboardItem: NavItem = {
     href: dashboardLink,
-    label: userRole === 'investor' ? 'Investor Dashboard' : 'My Requests', 
-    icon: userRole === 'investor' ? Users : Briefcase, // Changed icon for entrepreneur to Briefcase
+    label: dashboardLabel, 
+    icon: dashboardIcon,
   };
 
   // Construct final navigation list: dynamic dashboard item first, then filtered common items
-  const displayNavItems = userRole ? [ // Only build nav if userRole is known
+  const displayNavItems = userRole ? [ 
     dynamicDashboardItem,
     ...navItems.filter(item => {
-      // Always show items without specific roles defined
+      if (userRole === 'admin') return true; // Admins see most non-role-specific items
       if (!item.roles) return true;
-      // If roles are defined, check if current user's role is included
-      return userRole ? item.roles.includes(userRole) : false;
+      return item.roles.includes(userRole);
     })
   ] : [];
 
@@ -97,7 +112,7 @@ export default function Sidebar() {
         {displayNavItems.map((item) => (
           <Button
             key={item.label}
-            variant={pathname.startsWith(item.href) ? 'default' : 'ghost'} // Use startsWith for active state on nested routes like /chat/:id
+            variant={pathname.startsWith(item.href) ? 'default' : 'ghost'} 
             className={cn(
               'w-full justify-start',
               (pathname.startsWith(item.href)) ? 'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -111,7 +126,7 @@ export default function Sidebar() {
           </Button>
         ))}
       </nav>
-      {userRole && ( // Only show logout if user is determined
+      {userRole && ( 
         <div className="mt-auto">
           <Button
               variant={'ghost'}

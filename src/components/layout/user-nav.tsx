@@ -12,13 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User, LayoutDashboard, Brain } from 'lucide-react';
+import { LogOut, User, LayoutDashboard, Brain, ShieldCheck } from 'lucide-react'; // Added ShieldCheck
 import Link from 'next/link';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Role } from '@/types';
+
 
 export default function UserNav() {
-  const [user, setUser] = useState<{ name: string; email: string; role: string, avatarUrl?: string } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role: Role, avatarUrl?: string } | null>(null);
   const router = useRouter();
 
   const fetchUser = useCallback(() => {
@@ -76,7 +78,17 @@ export default function UserNav() {
       .toUpperCase();
   };
   
-  const dashboardPath = user.role === 'investor' ? '/dashboard/investor' : '/dashboard/entrepreneur';
+  let dashboardPath = '/dashboard/profile'; // Default
+  let dashboardIcon = LayoutDashboard;
+  if (user.role === 'admin') {
+    dashboardPath = '/dashboard/admin';
+    dashboardIcon = ShieldCheck;
+  } else if (user.role === 'investor') {
+    dashboardPath = '/dashboard/investor';
+  } else if (user.role === 'entrepreneur') {
+    dashboardPath = '/dashboard/entrepreneur';
+  }
+  
   const avatarSrc = user.avatarUrl || `https://placehold.co/100x100.png?text=${getInitials(user.name)}`;
 
   return (
@@ -102,7 +114,7 @@ export default function UserNav() {
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link href={dashboardPath}>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <dashboardIcon className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </Link>
           </DropdownMenuItem>
@@ -112,7 +124,7 @@ export default function UserNav() {
               <span>Profile</span>
             </Link>
           </DropdownMenuItem>
-          {user.role === 'entrepreneur' && (
+          {(user.role === 'entrepreneur' || user.role === 'admin') && ( // Admin can also see pitch analyzer
              <DropdownMenuItem asChild>
                 <Link href="/dashboard/pitch-analyzer">
                     <Brain className="mr-2 h-4 w-4" />

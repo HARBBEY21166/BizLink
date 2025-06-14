@@ -33,21 +33,42 @@ export default function DashboardLayout({
         const isEntrepreneurBaseDashboard = pathname === ('/dashboard/entrepreneur');
         const isPitchAnalyzer = pathname.startsWith('/dashboard/pitch-analyzer');
         const isDiscoverInvestors = pathname.startsWith('/dashboard/discover-investors');
-        const isProfilePage = pathname.startsWith('/dashboard/profile');
+        const isProfilePage = pathname.startsWith('/dashboard/profile'); // Covers own and others' profiles
         const isChatPage = pathname.startsWith('/dashboard/chat');
         const isBookmarksPage = pathname.startsWith('/dashboard/bookmarks');
-
+        const isAdminPage = pathname.startsWith('/dashboard/admin');
 
         let allowed = false;
 
-        if (user.role === 'investor') {
+        // Admin Access
+        if (user.role === 'admin') {
+            if (isAdminPage || isProfilePage || isChatPage) { // Admins can access admin, profiles, chat
+                allowed = true;
+            } else if (pathname === '/dashboard' || pathname === '/dashboard/'){ // Default admin to /dashboard/admin
+                 router.replace('/dashboard/admin');
+                 return;
+            } else { // Redirect other specific non-admin dashboard attempts
+                 router.replace('/dashboard/admin');
+                 return;
+            }
+        // Investor Access (Not Admin)
+        } else if (user.role === 'investor') {
+          if (isAdminPage) { // Investors cannot access admin page
+            router.replace('/dashboard/investor');
+            return;
+          }
           if (isInvestorBaseDashboard || isProfilePage || isChatPage || isBookmarksPage) {
             allowed = true;
           } else if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors) {
              router.replace('/dashboard/investor');
              return;
           }
+        // Entrepreneur Access (Not Admin)
         } else if (user.role === 'entrepreneur') {
+          if (isAdminPage) { // Entrepreneurs cannot access admin page
+            router.replace('/dashboard/entrepreneur');
+            return;
+          }
           if (isEntrepreneurBaseDashboard || isPitchAnalyzer || isDiscoverInvestors || isProfilePage || isChatPage || isBookmarksPage) {
             allowed = true;
           } else if (isInvestorBaseDashboard) {
@@ -56,13 +77,21 @@ export default function DashboardLayout({
           }
         }
         
-        if (!allowed && !(isProfilePage || isChatPage || isBookmarksPage)) {
-            if (pathname === '/dashboard' || pathname === '/dashboard/'){
-                if (user.role === 'investor') router.replace('/dashboard/investor');
-                else router.replace('/dashboard/entrepreneur');
-                return;
-            }
+        // General redirect for /dashboard or /dashboard/ if not admin (admin handled above)
+        if (!isAdminPage && (pathname === '/dashboard' || pathname === '/dashboard/')){
+            if (user.role === 'investor') router.replace('/dashboard/investor');
+            else if (user.role === 'entrepreneur') router.replace('/dashboard/entrepreneur');
+            // Admin default handled above
+            return;
         }
+
+        // If after all checks, not allowed and not a general page, redirect based on role (fallback)
+        // This primarily handles cases where a user might try to access a role-specific page not meant for them
+        // if (!allowed && !isProfilePage && !isChatPage && !isBookmarksPage && !isAdminPage) {
+        //     // This condition might be too broad or redundant now with specific checks above.
+        // }
+
+
       }
     }
   }, [router, pathname]);

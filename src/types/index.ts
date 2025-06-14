@@ -1,7 +1,7 @@
 
 import type { ObjectId as MongoObjectId } from 'mongodb';
 
-export type Role = 'investor' | 'entrepreneur';
+export type Role = 'investor' | 'entrepreneur' | 'admin';
 
 // Represents the User object as it is typically used on the client-side
 // and returned by APIs (excluding sensitive data like password).
