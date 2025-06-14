@@ -3,8 +3,9 @@
 
 import InvestorCard from '@/components/dashboard/discover-investors/investor-card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import type { User } from '@/types';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, FilterX } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { getAuthenticatedUser } from '@/lib/mockAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -18,7 +19,7 @@ const mockInvestors: User[] = [
     bio: 'A sample investor profile for demonstration purposes. Interested in innovative tech, renewable energy, and SaaS platforms. Looking for early-stage startups with strong teams.',
     investmentInterests: ['AI', 'Blockchain', 'SaaS', 'Renewable Energy'],
     portfolioCompanies: ['MockTech Global', 'Sample Solutions Inc.', 'Alpha Mock Ventures'],
-    createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), // Approx 100 days ago
+    createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString(), 
     avatarUrl: 'https://placehold.co/100x100.png',
     dataAiHint: 'man suit',
     isOnline: true,
@@ -31,7 +32,7 @@ const mockInvestors: User[] = [
     bio: 'Experienced angel investor focusing on consumer goods and e-commerce. This is a mock profile to showcase platform features.',
     investmentInterests: ['E-commerce', 'Consumer Goods', 'Marketplaces'],
     portfolioCompanies: ['Retail Mock Corp', 'DirectSample Goods'],
-    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(), // Approx 50 days ago
+    createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString(), 
     avatarUrl: 'https://placehold.co/100x100.png',
     dataAiHint: 'woman business',
     isOnline: false,
@@ -40,19 +41,24 @@ const mockInvestors: User[] = [
 
 export default function DiscoverInvestorsPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [interestKeywords, setInterestKeywords] = useState('');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [displayedProfiles, setDisplayedProfiles] = useState<User[]>([]); // Combined real and mock
+  const [displayedProfiles, setDisplayedProfiles] = useState<User[]>([]);
   const [bookmarkedProfileIds, setBookmarkedProfileIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchPageData = useCallback(async (token: string) => {
+  const fetchPageData = useCallback(async (token: string, currentSearchTerm: string, currentInterestKeywords: string) => {
     setIsLoading(true);
     setError(null);
     try {
+      const queryParams = new URLSearchParams({ role: 'investor' });
+      if (currentSearchTerm) queryParams.append('searchTerm', currentSearchTerm);
+      if (currentInterestKeywords) queryParams.append('interestKeywords', currentInterestKeywords);
+      
       const [investorsResponse, bookmarksResponse] = await Promise.all([
-        fetch('/api/users?role=investor', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`/api/users?${queryParams.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch('/api/bookmarks/ids', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
@@ -61,9 +67,7 @@ export default function DiscoverInvestorsPage() {
         throw new Error(errorData.message || `Failed to fetch investors: ${investorsResponse.statusText}`);
       }
       const investorsData: User[] = await investorsResponse.json();
-      
-      // Combine real investors with mock investors
-      const allProfiles = [...investorsData, ...mockInvestors];
+      const allProfiles = [...investorsData, ...mockInvestors.filter(mock => !investorsData.find(real => real.id === mock.id && !currentSearchTerm && !currentInterestKeywords))];
       setDisplayedProfiles(allProfiles);
 
       if (!bookmarksResponse.ok) {
@@ -79,7 +83,7 @@ export default function DiscoverInvestorsPage() {
       console.error(err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       toast({ variant: "destructive", title: "Error", description: err instanceof Error ? err.message : "Could not load page data."});
-      setDisplayedProfiles([...mockInvestors]); // Show mocks even if API fails
+      setDisplayedProfiles(!currentSearchTerm && !currentInterestKeywords ? [...mockInvestors] : []);
     } finally {
       setIsLoading(false);
     }
@@ -91,15 +95,15 @@ export default function DiscoverInvestorsPage() {
     const token = localStorage.getItem('bizlinkToken');
 
     if (user && user.role === 'entrepreneur' && token) {
-      fetchPageData(token);
+      fetchPageData(token, searchTerm, interestKeywords);
     } else if (user && user.role !== 'entrepreneur') {
       setIsLoading(false);
-      setDisplayedProfiles([]); // Clear profiles if not allowed
+      setDisplayedProfiles([]);
     } else {
-      setIsLoading(false); // No user or no token
+      setIsLoading(false);
       setDisplayedProfiles([]);
     }
-  }, [fetchPageData]);
+  }, [fetchPageData, searchTerm, interestKeywords]);
   
   const handleBookmarkToggle = useCallback((profileId: string, isBookmarked: boolean) => {
     setBookmarkedProfileIds(prevIds => {
@@ -111,18 +115,23 @@ export default function DiscoverInvestorsPage() {
       }
       return newIds;
     });
-    // For mock profiles, the API call in BookmarkButton will fail gracefully.
-    // For real profiles, this optimistic update is fine.
-    // If a more robust sync is needed after bookmarking real profiles, one could refetch:
+    // Optionally refetch all data if strict consistency is needed after bookmarking
     // const token = localStorage.getItem('bizlinkToken');
-    // if (currentUser && token && !profileId.startsWith('mock-')) fetchPageData(token);
+    // if (currentUser && token) fetchPageData(token, searchTerm, interestKeywords);
   }, []);
 
-  const filteredDisplayProfiles = displayedProfiles.filter(i =>
-    i.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (i.bio && i.bio.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (i.investmentInterests && i.investmentInterests.join(', ').toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const handleSearch = () => {
+    const token = localStorage.getItem('bizlinkToken');
+    if (currentUser && currentUser.role === 'entrepreneur' && token) {
+      fetchPageData(token, searchTerm, interestKeywords);
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setInterestKeywords('');
+    // useEffect will trigger refetch with empty filters
+  };
 
   if (!currentUser && !isLoading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -132,30 +141,57 @@ export default function DiscoverInvestorsPage() {
     return <p className="text-center py-10 text-muted-foreground">Access Denied. This page is for entrepreneurs.</p>;
   }
   
-  if (isLoading) {
+  if (isLoading && !error && displayedProfiles.length === 0) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2">Loading Investors...</span></div>;
   }
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h1 className="font-headline text-3xl font-bold text-foreground">Discover Investors</h1>
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input 
-            placeholder="Search by name, bio, interests..." 
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="space-y-4 p-4 border rounded-lg shadow bg-card">
+        <h2 className="text-xl font-semibold font-headline text-foreground">Filter Investors</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+          <div className="relative">
+            <label htmlFor="searchTerm" className="block text-sm font-medium text-muted-foreground mb-1">Search Term</label>
+            <Search className="absolute left-3 top-[calc(50%+0.3rem)] -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input 
+              id="searchTerm"
+              placeholder="Name, bio, interests..." 
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <div>
+            <label htmlFor="interestKeywords" className="block text-sm font-medium text-muted-foreground mb-1">Interest Keywords (comma-separated)</label>
+            <Input 
+              id="interestKeywords"
+              placeholder="e.g., SaaS, AI, Fintech" 
+              value={interestKeywords}
+              onChange={(e) => setInterestKeywords(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSearch} className="w-full sm:w-auto bg-primary hover:bg-primary/90">
+              <Search className="mr-2 h-4 w-4"/> Apply Filters
+            </Button>
+            <Button onClick={clearFilters} variant="outline" className="w-full sm:w-auto">
+              <FilterX className="mr-2 h-4 w-4"/> Clear
+            </Button>
+          </div>
         </div>
       </div>
 
       {error && <p className="text-center py-10 text-destructive">Error: {error}</p>}
       
-      {!isLoading && !error && filteredDisplayProfiles.length > 0 ? (
+      {isLoading && displayedProfiles.length > 0 && (
+         <div className="flex items-center justify-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /> <span className="ml-2 text-sm text-muted-foreground">Updating results...</span></div>
+      )}
+      
+      {!isLoading && !error && displayedProfiles.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDisplayProfiles.map((investor) => (
+          {displayedProfiles.map((investor) => (
             <InvestorCard 
                 key={investor.id} 
                 investor={investor}
@@ -166,10 +202,10 @@ export default function DiscoverInvestorsPage() {
         </div>
       ) : null}
 
-      {!isLoading && !error && filteredDisplayProfiles.length === 0 && (
+      {!isLoading && !error && displayedProfiles.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-xl text-muted-foreground">No investors found matching your search criteria.</p>
-          <p className="text-sm text-muted-foreground">Try different keywords or check back later.</p>
+          <p className="text-xl text-muted-foreground">No investors found matching your filters.</p>
+          <p className="text-sm text-muted-foreground">Try different keywords or clear filters.</p>
         </div>
       )}
     </div>
