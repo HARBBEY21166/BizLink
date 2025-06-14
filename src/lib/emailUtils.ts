@@ -16,12 +16,24 @@ const emailUser = process.env.EMAIL_USER;
 const emailPass = process.env.EMAIL_PASS;
 const emailFrom = process.env.EMAIL_FROM;
 const emailSecure = process.env.EMAIL_SECURE === 'true'; // Convert string to boolean
+const appBaseUrlFromEnv = process.env.NEXT_PUBLIC_APP_URL;
 
 if (!emailHost || !emailPort || !emailUser || !emailPass || !emailFrom) {
   console.warn(
     'Email environment variables (EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASS, EMAIL_FROM, EMAIL_SECURE) are not fully configured. Password reset emails will not be sent.'
   );
 }
+
+if (!appBaseUrlFromEnv) {
+  console.warn(
+    "WARNING: The 'NEXT_PUBLIC_APP_URL' environment variable is not set. Password reset links will default to 'http://localhost:9002' and may not work correctly if your application is hosted elsewhere or accessed via a different URL. Please set NEXT_PUBLIC_APP_URL in your .env file."
+  );
+} else if (appBaseUrlFromEnv.includes('localhost')) {
+  console.info(
+    "INFO: 'NEXT_PUBLIC_APP_URL' is currently set to a localhost URL (" + appBaseUrlFromEnv + "). Ensure this is correct for your testing environment. For deployed applications, this should be your public URL."
+  );
+}
+
 
 const transporter = nodemailer.createTransport({
   host: emailHost,
@@ -31,26 +43,19 @@ const transporter = nodemailer.createTransport({
     user: emailUser,
     pass: emailPass,
   },
-  // If using a self-signed certificate in development (not recommended for production)
-  // tls: {
-  //   rejectUnauthorized: false
-  // }
 });
 
 export async function sendPasswordResetEmail(recipientEmail: string, resetToken: string): Promise<void> {
+  const appBaseUrl = appBaseUrlFromEnv || 'http://localhost:9002';
+  const resetLink = `${appBaseUrl}/reset-password?token=${resetToken}`;
+
   if (!emailHost || !emailPort || !emailUser || !emailPass || !emailFrom) {
     console.error('Email service is not configured. Cannot send password reset email.');
-    // Fallback to console logging the link if email isn't configured,
-    // but still throw an error to indicate misconfiguration for server admin.
-    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-    const resetLink = `${appBaseUrl}/reset-password?token=${resetToken}`;
     console.log(`[PASSWORD RESET EMAIL FALLBACK] User: ${recipientEmail}`);
     console.log(`[PASSWORD RESET EMAIL FALLBACK] Reset Link: ${resetLink}`);
     throw new Error('Email service not configured. Password reset link logged to console as fallback.');
   }
 
-  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-  const resetLink = `${appBaseUrl}/reset-password?token=${resetToken}`;
 
   const mailOptions: EmailOptions = {
     from: `"BizLink Support" <${emailFrom}>`,
@@ -77,11 +82,9 @@ export async function sendPasswordResetEmail(recipientEmail: string, resetToken:
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log(`[EmailUtils] Password reset email sent to ${recipientEmail}`);
+    console.log(`[EmailUtils] Password reset email sent to ${recipientEmail}. Link: ${resetLink}`);
   } catch (error) {
     console.error(`[EmailUtils] Error sending password reset email to ${recipientEmail}:`, error);
-    // Rethrow the error so the calling API route can handle it
-    // and potentially inform the user that the email could not be sent.
     throw new Error('Could not send password reset email. Please try again later.');
   }
 }
