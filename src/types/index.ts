@@ -1,4 +1,3 @@
-
 import type { ObjectId as MongoObjectId } from 'mongodb';
 
 export type Role = 'investor' | 'entrepreneur';
@@ -105,22 +104,4 @@ export interface PitchAnalysis {
   strengths: string;
   weaknesses: string;
   advice: string;
-}
-
-// Client-facing Bookmark
-export interface Bookmark {
-  id: string; // MongoDB _id as string
-  userId: string;
-  bookmarkedProfileId: string;
-  createdAt: string; // ISO Date string
-  // Optionally, we can include the bookmarked profile details here if GET /api/bookmarks populates it
-  profile?: User;
-}
-
-// Bookmark document as stored in MongoDB
-export interface MongoBookmarkDocument {
-  _id: MongoObjectId;
-  userId: MongoObjectId; // User who created the bookmark
-  bookmarkedProfileId: MongoObjectId; // Profile that was bookmarked
-  createdAt: Date;
 }
