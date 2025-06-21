@@ -140,7 +140,7 @@ export default function EntrepreneurCard({
           {entrepreneur.bio || "A brief bio about the entrepreneur and their venture will appear here. Seeking opportunities for growth and collaboration."}
         </p>
       </CardContent>
-      <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 mt-auto pt-4 border-t">
+      <CardFooter className="flex flex-col sm:flex-row flex-wrap justify-center gap-2 mt-auto pt-4 border-t">
         <BookmarkButton
           profileId={entrepreneur.id}
           initialIsBookmarked={isBookmarked}

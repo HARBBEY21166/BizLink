@@ -1,7 +1,4 @@
-
-import type {NextConfig} from 'next';
-
-const nextConfig: NextConfig = {
+const nextConfig = {
   // No srcDir needed if 'src' is at the root and contains 'app'
   images: {
     remotePatterns: [
